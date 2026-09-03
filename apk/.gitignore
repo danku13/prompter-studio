@@ -1,0 +1,20 @@
+# apk/ — Vite + Capacitor
+node_modules/
+www/
+dist/
+.vite/
+
+# готовый APK собирается в CI (артефакт workflow) — не коммитим
+*.apk
+
+# Android build-артефакты (исходники платформы коммитим)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/public/
+android/.idea/
+android/*.iml
+
+*.log
+.DS_Store

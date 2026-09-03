@@ -1,0 +1,11 @@
+/*
+ * APK-фолбэки для CSS-переменных шрифтов из ../src/app/globals.css.
+ * В Next.js значения задаёт src/app/layout.tsx (Geist), в Capacitor-сборке их нет —
+ * используем системные стеки Android (Roboto и т.п.).
+ */
+
+:root {
+  --font-geist-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --font-geist-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Roboto Mono', monospace;
+}

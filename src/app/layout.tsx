@@ -18,8 +18,13 @@ export const metadata: Metadata = {
   description:
     "Пишите сценарий на компьютере, читайте его с телесуфлёра на телефоне и записывайте видео. Живая синхронизация по локальной сети.",
   keywords: ["телесуфлёр", "prompter", "teleprompter", "видео", "сценарий", "запись"],
+  manifest: "/manifest.json",
   icons: {
-    icon: "/logo.svg",
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/icons/apple-touch-icon.png",
   },
 };
 

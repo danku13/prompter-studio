@@ -1,0 +1,75 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apk/**'
+      - 'src/components/mobile/**'
+      - 'src/components/ui/**'
+      - 'src/lib/**'
+      - 'src/hooks/**'
+      - 'src/app/globals.css'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      # JDK 21: capacitor.build.gradle (генерируется @capacitor/cli 7.x) требует
+      # source/targetCompatibility JavaVersion.VERSION_21 — Java 17 НЕ подходит.
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform & build tools
+        # версии — из apk/android/variables.gradle (compileSdkVersion = 35)
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Install apk dependencies
+        run: cd apk && bun install
+
+      - name: Build web assets (Vite)
+        run: cd apk && bun run build
+
+      - name: Sync Capacitor (www + plugins → android)
+        run: cd apk && bunx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd apk/android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompter-studio-debug-apk
+          path: apk/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Summary
+        run: |
+          echo "### APK собран :white_check_mark:" >> $GITHUB_STEP_SUMMARY
+          echo "Артефакт: **prompter-studio-debug-apk** (apk/android/app/build/outputs/apk/debug/app-debug.apk)" >> $GITHUB_STEP_SUMMARY
+          echo "Подпись: debug-ключ — устанавливается на телефон без манипуляций (разрешить «неизвестные источники»)." >> $GITHUB_STEP_SUMMARY

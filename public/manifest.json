@@ -1,0 +1,31 @@
+{
+  "name": "Prompter Studio — телесуфлёр и редактор",
+  "short_name": "Prompter",
+  "description": "Пишите сценарий на компьютере, читайте его с телесуфлёра на телефоне и записывайте видео. Живая синхронизация по локальной сети.",
+  "lang": "ru",
+  "start_url": "/?ui=mobile",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

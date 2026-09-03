@@ -44,7 +44,9 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  // apk/** — отдельный Vite/Capacitor-проект (сборка: bun run build в apk/, tsc
+  // проверяется в самом apk/); его www/ и android-артефакты не линтим отсюда
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apk/**"]
 }];
 
 export default eslintConfig;
