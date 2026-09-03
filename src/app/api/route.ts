@@ -1,5 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
+/** Здоров-чек API */
 export async function GET() {
-  return NextResponse.json({ message: "Hello, world!" });
+  return NextResponse.json({ ok: true, app: 'prompter-studio' });
 }

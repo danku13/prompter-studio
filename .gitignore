@@ -32,9 +32,25 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# prompter-studio
+/db/*.db
+/db/*.db-journal
+worklog.md
+
+# apk (Capacitor) — генерируемые артефакты
+apk/www/
+apk/dist/
+apk/android/.gradle/
+apk/android/app/build/
+apk/android/build/
+apk/android/local.properties
+apk/android/app/src/main/assets/public/
+apk/mobile-dist/
 
 
 # typescript

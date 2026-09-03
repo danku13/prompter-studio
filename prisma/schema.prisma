@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// Prompter Studio — схема данных (владение: агент 2-c)
+// Сценарий → секции (порядок), дубли (takes), токены подключения телефона.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,20 +10,55 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Script {
+  id         String      @id @default(cuid())
+  title      String      @default("Новый сценарий")
+  revision   Int         @default(1)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  sections   Section[]
+  takes      Take[]
+  pairTokens PairToken[]
 }
 
-model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String?
-  published Boolean  @default(false)
-  authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Section {
+  id         String   @id @default(cuid())
+  scriptId   String
+  script     Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  orderIndex Int
+  title      String   @default("")
+  content    String   @default("")
+  color      String   @default("default")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([scriptId, orderIndex])
+}
+
+model Take {
+  id           String   @id @default(cuid())
+  scriptId     String
+  script       Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  sectionId    String
+  sectionTitle String
+  t0           Int
+  t1           Int
+  durationMs   Int
+  rating       String?
+  createdAt    DateTime @default(now())
+
+  @@index([scriptId, createdAt])
+}
+
+model PairToken {
+  id         String    @id @default(cuid())
+  token      String    @unique
+  scriptId   String
+  script     Script    @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  deviceName String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  usedAt     DateTime?
+
+  @@index([scriptId])
 }

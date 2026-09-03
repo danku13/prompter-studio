@@ -1,0 +1,21 @@
+# dependencies
+node_modules
+
+# logs (runtime artefacts)
+logs
+service.log
+*.log
+
+# dotenv environment variable files
+.env
+.env.local
+.env.*.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# IDE
+.idea
+.DS_Store

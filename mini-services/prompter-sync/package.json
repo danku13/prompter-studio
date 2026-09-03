@@ -1,0 +1,14 @@
+{
+  "name": "prompter-sync",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch index.ts",
+    "start": "node index.ts",
+    "typecheck": "tsc --noEmit",
+    "supervise": "bash supervise.sh"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3"
+  }
+}

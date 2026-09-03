@@ -1,0 +1,192 @@
+/**
+ * Prompter Studio — общие контракты данных и протоколов.
+ * ЕДИНЫЙ ИСТОЧНИК ПРАВДЫ для веб-редактора, мобильного клиента и синхронизации.
+ * Менять аккуратно: на этот файл завязаны десктоп, мобайл, REST API и WS-сервис.
+ */
+
+// ================= Данные сценария =================
+
+export const SECTION_COLORS = ['default', 'amber', 'rose', 'emerald', 'violet'] as const;
+export type SectionColor = (typeof SECTION_COLORS)[number];
+
+export interface ScriptSection {
+  /** cuid от сервера; временные клиентские id начинаются с 'tmp-' */
+  id: string;
+  title: string;
+  content: string;
+  color: SectionColor;
+  orderIndex: number;
+}
+
+export interface ScriptData {
+  id: string;
+  title: string;
+  revision: number;
+  sections: ScriptSection[];
+  updatedAt?: string;
+}
+
+export interface ScriptSummary {
+  id: string;
+  title: string;
+  revision: number;
+  sectionCount: number;
+  wordCount: number;
+  estSeconds: number;
+  updatedAt: string;
+}
+
+/** Секция, которую клиент отправляет при сохранении (id опционален для новых) */
+export interface SectionDraft {
+  id?: string;
+  title: string;
+  content: string;
+  color: SectionColor;
+  orderIndex: number;
+}
+
+export interface SaveScriptPayload {
+  title: string;
+  sections: SectionDraft[];
+  /** ревизия, на которой клиент основывал правки; при конфликте сервер вернёт 409 */
+  baseRevision: number;
+}
+
+// ================= Дубли (takes) =================
+
+export type TakeRating = 'good' | 'ok' | 'bad';
+
+export interface TakeRecord {
+  id: string;
+  scriptId: string;
+  sectionId: string;
+  /** снапшот заголовка секции на момент дубля (секция могла быть изменена) */
+  sectionTitle: string;
+  /** мс от старта записи */
+  t0: number;
+  /** мс от старта записи */
+  t1: number;
+  durationMs: number;
+  rating: TakeRating | null;
+  createdAt: string;
+}
+
+// ================= Сервер / pairing =================
+
+export type WsMode = 'direct' | 'gateway';
+
+export interface ServerInfo {
+  appName: string;
+  version: string;
+  /** LAN IPv4 компьютера (для QR); null, если не найден */
+  lanIp: string | null;
+  webPort: number;
+  wsPort: number;
+  wsMode: WsMode;
+}
+
+export interface PairSessionInfo {
+  token: string;
+  scriptId: string;
+  /** prompter://connect?host=..&webPort=..&wsPort=..&token=.. — для APK (deep link) */
+  deepLink: string;
+  /** http://<lanIp>:<webPort>/?pair=<token> — для браузера на телефоне */
+  webUrl: string;
+  expiresAt: string;
+}
+
+// ================= WebSocket-протокол (мини-сервис, порт 3030) =================
+/**
+ * Комнаты: script:<scriptId> — в комнате редакторы + устройства.
+ *
+ * Клиент → сервер:
+ *   'hello'    HelloPayload → ack HelloAck           (валидация токена для device)
+ *   'subscribe' {scriptId}                            (editor: сменить активную комнату)
+ *   'status'   {recording, sectionId, wpm, battery}   (device → телеметрия)
+ *   'take'     {sectionId, sectionTitle, t0, t1}      (device → метка дубля)
+ *
+ * Сервер → клиентам:
+ *   'script'          ScriptPushMessage   — всем в комнате (живые правки текста)
+ *   'device-status'   DeviceStatusMessage — редакторам (телеметрия телефона)
+ *   'device-presence' DevicePresenceMessage — редакторам (online/offline)
+ *   'take'            TakeMessage         — редакторам (новый дубль, уже сохранённый в БД)
+ *
+ * Внутренний HTTP (Next.js → мини-сервис):
+ *   POST /internal/broadcast {scriptId, revision, script}
+ * Мини-сервис → Next.js:
+ *   GET  /api/pair/validate?token=   (валидация device-токена)
+ *   POST /api/takes                  (сохранение дубля, токен в теле)
+ */
+
+export type SyncRole = 'device' | 'editor';
+
+export interface DeviceInfo {
+  deviceId: string;
+  /** например "Android · Pixel 7" */
+  name: string;
+  /** 'android' | 'browser' | ... */
+  platform: string;
+}
+
+export interface HelloPayload {
+  role: SyncRole;
+  /** для role=device */
+  token?: string;
+  /** для role=editor — активный сценарий */
+  scriptId?: string;
+  deviceInfo?: DeviceInfo;
+}
+
+export interface HelloAck {
+  ok: boolean;
+  scriptId?: string;
+  error?: string;
+}
+
+export interface DeviceStatusMessage {
+  deviceId: string;
+  deviceName: string;
+  scriptId: string;
+  recording: boolean;
+  sectionId: string | null;
+  wpm: number | null;
+  battery: number | null;
+  updatedAt: string;
+}
+
+export interface DevicePresenceMessage {
+  deviceId: string;
+  deviceName: string;
+  scriptId: string;
+  connected: boolean;
+}
+
+export interface TakeMessage {
+  scriptId: string;
+  take: TakeRecord;
+}
+
+export interface ScriptPushMessage {
+  scriptId: string;
+  revision: number;
+  script: ScriptData;
+}
+
+// ================= REST-контракт (Next.js /api) =================
+/**
+ * GET    /api/server-info                 → ServerInfo
+ * GET    /api/scripts                     → ScriptSummary[]
+ * POST   /api/scripts {title}             → ScriptData
+ * GET    /api/scripts/:id                 → ScriptData
+ * PUT    /api/scripts/:id SaveScriptPayload → { script: ScriptData } | 409 {error:'revision_conflict'}
+ * DELETE /api/scripts/:id                 → { ok: true }
+ * POST   /api/pair {scriptId}             → PairSessionInfo
+ * GET    /api/pair/validate?token=        → { ok: true, scriptId, expiresAt } | 404
+ * GET    /api/mobile/script?token=&deviceName= → { script, wsMode, wsPort }
+ * POST   /api/takes {token, sectionId, sectionTitle, t0, t1} → { take: TakeRecord }
+ * GET    /api/takes?scriptId=             → TakeRecord[] (новые сверху)
+ * PATCH  /api/takes/:id {rating|null}     → TakeRecord
+ * DELETE /api/takes/:id                   → { ok: true }
+ *
+ * Ошибки: { error: string, code?: string }; 409 → code='revision_conflict'
+ */
