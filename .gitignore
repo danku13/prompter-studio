@@ -68,3 +68,8 @@ prompt
 server.log
 # Skills directory
 /skills/
+# sandbox runtime artifacts (auto-commits pick these up)
+.zscripts/
+tool-results/
+*.pid
+/upload/
