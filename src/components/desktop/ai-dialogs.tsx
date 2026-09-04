@@ -1,20 +1,23 @@
 'use client';
 
 /**
- * Диалоги AI-помощника для секции (агент 5):
- *  - AiImproveDialog  — улучшение текста (polish / shorten / expand / своя инструкция),
- *                       результат можно отредактировать перед применением;
+ * Диалоги AI-помощника для секции:
+ *  - AiImproveDialog  — улучшение текста (polish / shorten / expand / своя инструкция)
+ *                       с видом «до → после» (пословная подсветка изменений) и
+ *                       редактированием результата перед применением;
  *  - AiSplitDialog    — разбиение секции на подсекции с редактированием частей.
  *
  * Применение НЕ пишется в БД напрямую: колбэк родителя проводит правку через
  * штатный mutate редактора → автосохранение → ревизия → broadcast в суфлёр.
+ * Возможность отменить применённую правку живёт в SectionCard (снапшот «до»).
  */
 
 import * as React from 'react';
-import { Loader2, Plus, Scissors, Sparkles, Trash2, Wand2 } from 'lucide-react';
+import { Columns2, Loader2, PenLine, Plus, Scissors, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import type { AiImproveMode, AiSubsectionDraft } from '@/lib/types';
 import { ApiClient } from '@/lib/client/api';
-import { countWords } from '@/lib/text';
+import { diffWords, type DiffToken } from '@/lib/diff';
+import { countWords, estimateSeconds, formatDuration } from '@/lib/text';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +43,64 @@ function ErrorNote({ message }: { message: string }) {
 
 // ================= Улучшение текста =================
 
+/** Подсветка удалённых слов — колонка «было» */
+const DEL_MARK =
+  'rounded-sm bg-red-500/15 text-red-700 line-through decoration-red-500/50 dark:bg-red-500/20 dark:text-red-300';
+/** Подсветка добавленных слов — колонка «стало» */
+const ADD_MARK =
+  'rounded-sm bg-emerald-500/15 font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300';
+
+/** Поток diff с подсветкой; пробелы внутри атомов остаются вне подсветки */
+function DiffStream({ tokens, side }: { tokens: DiffToken[]; side: 'before' | 'after' }) {
+  return (
+    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+      {tokens.map((t, i) => {
+        const marked = (side === 'before' && t.op === 'del') || (side === 'after' && t.op === 'add');
+        if (!marked) return <span key={i}>{t.text}</span>;
+        const split = /^(.*?)(\s*)$/s.exec(t.text);
+        const core = split ? split[1] : t.text;
+        const tail = split ? split[2] : '';
+        return (
+          <span key={i}>
+            {core ? <span className={side === 'before' ? DEL_MARK : ADD_MARK}>{core}</span> : null}
+            {tail}
+          </span>
+        );
+      })}
+    </p>
+  );
+}
+
+/** Колонка сравнения: «Было» или «Стало» */
+function ComparePanel({
+  label,
+  words,
+  seconds,
+  tokens,
+  side,
+}: {
+  label: string;
+  words: number;
+  seconds: number | null;
+  tokens: DiffToken[];
+  side: 'before' | 'after';
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border">
+      <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-1.5">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {words} {plural(words, 'слово', 'слова', 'слов')}
+          {seconds !== null ? <> · ~{formatDuration(seconds)}</> : null}
+        </span>
+      </div>
+      <div className="p-3">
+        <DiffStream tokens={tokens} side={side} />
+      </div>
+    </div>
+  );
+}
+
 const IMPROVE_MODES: { value: AiImproveMode; label: string; hint: string }[] = [
   { value: 'polish', label: 'Отшлифовать', hint: 'грамматика, стиль, ритм' },
   { value: 'shorten', label: 'Сократить', hint: '− треть объёма' },
@@ -53,14 +114,20 @@ export interface AiImproveDialogProps {
   api: ApiClient;
   title: string;
   content: string;
+  /** скорость речи — для оценки хронометража «до → после» */
+  wpm?: number;
   /** применить результат (уже отредактированный пользователем) */
   onApply: (content: string) => void;
 }
 
-export function AiImproveDialog({ open, onOpenChange, api, title, content, onApply }: AiImproveDialogProps) {
+/** Режим показа результата AI: сравнение с оригиналом или редактирование */
+type ResultView = 'compare' | 'edit';
+
+export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, onApply }: AiImproveDialogProps) {
   const [mode, setMode] = React.useState<AiImproveMode>('polish');
   const [instruction, setInstruction] = React.useState('');
   const [result, setResult] = React.useState('');
+  const [view, setView] = React.useState<ResultView>('compare');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -69,6 +136,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, onApp
     setMode('polish');
     setInstruction('');
     setResult('');
+    setView('compare');
     setError(null);
     setLoading(false);
   }, [open]);
@@ -87,6 +155,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, onApp
         ...(mode === 'custom' ? { instruction: instruction.trim() } : {}),
       });
       setResult(res.content);
+      setView('compare');
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -97,9 +166,16 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, onApp
   const wordsBefore = countWords(content);
   const wordsAfter = countWords(result);
 
+  // пословное сравнение «до → после» (результат ещё можно править — diff пересчитается)
+  const diff = React.useMemo(() => (result ? diffWords(content, result) : null), [content, result]);
+  const secBefore = wpm ? estimateSeconds(wordsBefore, wpm) : null;
+  const secAfter = wpm ? estimateSeconds(wordsAfter, wpm) : null;
+  const delta = wordsAfter - wordsBefore;
+  const deltaPct = wordsBefore > 0 ? Math.round((delta / wordsBefore) * 100) : null;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Wand2 className="size-4 text-amber-500" />
@@ -107,7 +183,8 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, onApp
             {title.trim() ? <span className="text-muted-foreground">· «{title.trim()}»</span> : null}
           </DialogTitle>
           <DialogDescription>
-            AI предложит вариант — вы сможете отредактировать его перед применением. Изменение
+            AI предложит вариант — сравните его с исходным текстом, поправьте при желании и
+            примените. После применения правку можно отменить прямо в карточке секции. Изменение
             сохранится и синхронизируется в суфлёр как обычная правка.
           </DialogDescription>
         </DialogHeader>
@@ -172,21 +249,109 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, onApp
           {error && <ErrorNote message={error} />}
 
           {result && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="ai-improve-result">
-                  Результат{' '}
-                  <span className="font-normal text-muted-foreground">
-                    ({wordsBefore} → {wordsAfter} {plural(wordsAfter, 'слово', 'слова', 'слов')})
-                  </span>
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Результат — проверьте изменения перед применением
                 </Label>
+                <div
+                  className="inline-flex items-center gap-0.5 rounded-lg border p-0.5"
+                  role="tablist"
+                  aria-label="Режим просмотра результата"
+                >
+                  {(
+                    [
+                      { v: 'compare', label: 'Сравнить', icon: Columns2 },
+                      { v: 'edit', label: 'Править', icon: PenLine },
+                    ] as const
+                  ).map(({ v, label, icon: Icon }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      role="tab"
+                      aria-selected={view === v}
+                      onClick={() => setView(v)}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                        view === v
+                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                          : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >
+                      <Icon className="size-3.5" />
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <Textarea
-                id="ai-improve-result"
-                value={result}
-                onChange={(e) => setResult(e.target.value)}
-                className="min-h-44 resize-none"
-              />
+
+              {view === 'compare' && diff ? (
+                <>
+                  <div className={cn('max-h-80 overflow-y-auto rounded-lg', THIN_SCROLL)}>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <ComparePanel
+                        label="Было"
+                        words={wordsBefore}
+                        seconds={secBefore}
+                        tokens={diff.before}
+                        side="before"
+                      />
+                      <ComparePanel
+                        label="Стало"
+                        words={wordsAfter}
+                        seconds={secAfter}
+                        tokens={diff.after}
+                        side="after"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-red-500/35" aria-hidden />
+                      удалено
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block size-2.5 rounded-sm bg-emerald-500/35" aria-hidden />
+                      добавлено
+                    </span>
+                    <span className="tabular-nums">
+                      −{diff.removedWords} / +{diff.addedWords}{' '}
+                      {plural(diff.removedWords + diff.addedWords, 'слово', 'слова', 'слов')}
+                    </span>
+                    {deltaPct !== null && delta !== 0 && (
+                      <span
+                        className={cn(
+                          'font-medium tabular-nums',
+                          delta < 0
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        )}
+                      >
+                        объём {delta > 0 ? '+' : '−'}
+                        {Math.abs(deltaPct)}%
+                      </span>
+                    )}
+                    {diff.fallback && <span>текст большой — без детальной подсветки</span>}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-improve-result">
+                      Результат{' '}
+                      <span className="font-normal text-muted-foreground">
+                        ({wordsBefore} → {wordsAfter} {plural(wordsAfter, 'слово', 'слова', 'слов')})
+                      </span>
+                    </Label>
+                  </div>
+                  <Textarea
+                    id="ai-improve-result"
+                    value={result}
+                    onChange={(e) => setResult(e.target.value)}
+                    className="min-h-44 resize-none"
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react';
-import { ArrowDown, ArrowUp, Copy, Scissors, Sparkles, Trash2, Wand2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Copy, Scissors, Sparkles, Trash2, Undo2, Wand2 } from 'lucide-react';
 import type { AiSubsectionDraft, ScriptSection } from '@/lib/types';
 import { ApiClient } from '@/lib/client/api';
 import { countWords, estimateSeconds, formatDuration } from '@/lib/text';
@@ -66,6 +66,14 @@ export function SectionCard({
   const [improveOpen, setImproveOpen] = React.useState(false);
   const [splitOpen, setSplitOpen] = React.useState(false);
   const taRef = React.useRef<HTMLTextAreaElement | null>(null);
+
+  // Откат AI-улучшения: снапшот «до/после»; живёт до отмены, принятия
+  // или первой ручной правки текста (тогда откат становится неоднозначным).
+  const [aiUndo, setAiUndo] = React.useState<{ before: string; after: string } | null>(null);
+
+  React.useEffect(() => {
+    if (aiUndo && section.content !== aiUndo.after) setAiUndo(null);
+  }, [section.content, aiUndo]);
 
   const words = countWords(section.content);
   const seconds = estimateSeconds(words, wpm);
@@ -179,6 +187,44 @@ export function SectionCard({
         />
       </div>
 
+      {aiUndo && (
+        <div className="mx-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+          <Sparkles className="size-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+          <span className="font-medium">Текст изменён AI</span>
+          <span className="tabular-nums text-amber-700/80 dark:text-amber-300/70">
+            {countWords(aiUndo.before)} → {countWords(aiUndo.after)}{' '}
+            {plural(countWords(aiUndo.after), 'слово', 'слова', 'слов')}
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1 border-amber-500/40 px-2 text-amber-800 hover:bg-amber-500/15 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+              onClick={() => {
+                onChange({ content: aiUndo.before });
+                setAiUndo(null);
+              }}
+              title="Вернуть текст, который был до улучшения"
+            >
+              <Undo2 className="size-3.5" />
+              Отменить правку
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-amber-700/90 hover:text-amber-800 dark:text-amber-300/90 dark:hover:text-amber-200"
+              onClick={() => setAiUndo(null)}
+              title="Оставить улучшенный текст"
+            >
+              <Check className="size-3.5" />
+              Оставить
+            </Button>
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between px-4 text-xs tabular-nums text-muted-foreground">
         <span>Секция {index + 1}</span>
         <span>
@@ -214,7 +260,13 @@ export function SectionCard({
         api={api}
         title={section.title}
         content={section.content}
-        onApply={(content) => onChange({ content })}
+        wpm={wpm}
+        onApply={(content) => {
+          if (content !== section.content) {
+            setAiUndo({ before: section.content, after: content });
+          }
+          onChange({ content });
+        }}
       />
       <AiSplitDialog
         open={splitOpen}
