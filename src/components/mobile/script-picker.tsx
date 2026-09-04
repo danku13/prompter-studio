@@ -14,8 +14,8 @@ import { FileVideo, Loader2, LogOut, RefreshCw, WifiOff } from 'lucide-react';
 import { ApiClient, ApiError } from '@/lib/client/api';
 import { getDeviceIdentity, type ConnectionConfig } from '@/lib/client/connection';
 import { useDeviceSync, type SyncStatus } from '@/lib/client/use-sync';
-import type { ScriptData, ScriptSummary } from '@/lib/types';
-import { formatDuration, formatRelative } from '@/lib/text';
+import type { ScriptData, ScriptPushMessage, ScriptSummary } from '@/lib/types';
+import { countWords, estimateSeconds, formatDuration, formatRelative } from '@/lib/text';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { cacheScript, listCachedScripts, readCachedScript } from './script-cache';
@@ -45,7 +45,32 @@ export default function ScriptPicker({ cfg, api, initialScript, onOpenScript, on
   const [openingId, setOpeningId] = useState<string | null>(null);
 
   const deviceName = useMemo(() => getDeviceIdentity().name, []);
-  const sync = useDeviceSync(api, cfg, {});
+
+  // Живой push сценария на экране списка: обновляем карточку и офлайн-кэш,
+  // чтобы при открытии (и офлайн) был свежий текст.
+  const handleScriptPush = useCallback((m: ScriptPushMessage) => {
+    cacheScript(m.script);
+    setScripts((prev) => {
+      if (!prev) return prev;
+      const idx = prev.findIndex((s) => s.id === m.scriptId);
+      if (idx === -1 || prev[idx].revision >= m.revision) return prev;
+      const words = m.script.sections.reduce((sum, s) => sum + countWords(s.content), 0);
+      const fresh: ScriptSummary = {
+        ...prev[idx],
+        revision: m.revision,
+        sectionCount: m.script.sections.length,
+        wordCount: words,
+        estSeconds: estimateSeconds(words, 140),
+        updatedAt: m.script.updatedAt ?? new Date().toISOString(),
+      };
+      const copy = [...prev];
+      copy[idx] = fresh;
+      return copy;
+    });
+  }, []);
+
+  const sync = useDeviceSync(api, cfg, { onScriptPush: handleScriptPush });
+  const { subscribe } = sync;
   const ws = WS_BADGE[sync.status];
   const cached = useMemo<CachedScriptEntry[]>(() => (offline ? listCachedScripts() : []), [offline]);
 
@@ -66,6 +91,12 @@ export default function ScriptPicker({ cfg, api, initialScript, onOpenScript, on
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Возвращаемся из суфлёра — снова слушаем спаренный сценарий
+  // (суфлёр мог переключить нас в комнату другого).
+  useEffect(() => {
+    subscribe(cfg.scriptId);
+  }, [subscribe, cfg.scriptId]);
 
   // подключение уже отдаёт сценарий — держим кэш свежим
   useEffect(() => {

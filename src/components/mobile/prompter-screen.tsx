@@ -89,20 +89,39 @@ export default function PrompterScreen({ cfg, api, script: initialScript, onExit
 
   // ================= Синхронизация (WS) =================
 
+  const scriptRef = useRef(script);
+  scriptRef.current = script;
+
   const applyScriptPush = useCallback(
     (m: ScriptPushMessage) => {
-      const keepId = script.sections[currentSectionIndex]?.id ?? null;
+      const keepId = scriptRef.current.sections[currentSectionIndex]?.id ?? null;
       setScript(m.script);
       cacheScript(m.script);
       pendingJumpSectionIdRef.current = keepId;
       toast({ title: 'Текст обновлён', description: `Синхронизирована ревизия ${m.script.revision}.` });
     },
-    [script, currentSectionIndex, toast]
+    [currentSectionIndex, toast]
   );
+
+  // «Заживление»: подтянуть свежую ревизию с сервера (пуши могли быть пропущены,
+  // пока сокет был внизу или сидел в другой комнате). Применяем только если новее.
+  const freshenScript = useCallback(async () => {
+    const current = scriptRef.current;
+    if (!current) return;
+    try {
+      const fresh = await api.getScript(current.id);
+      if (fresh.id === scriptRef.current?.id && fresh.revision > scriptRef.current.revision) {
+        applyScriptPush({ scriptId: fresh.id, revision: fresh.revision, script: fresh });
+      }
+    } catch {
+      /* офлайн — следующий реконнект повторит */
+    }
+  }, [api, applyScriptPush]);
 
   const sync = useDeviceSync(api, cfg, {
     onScriptPush: (m) => {
-      if (m.scriptId !== script.id || m.revision <= script.revision) return;
+      const current = scriptRef.current;
+      if (m.scriptId !== current.id || m.revision <= current.revision) return;
       if (recording) {
         // запись идёт — применяем после стопа
         pendingPushRef.current = m;
@@ -110,8 +129,18 @@ export default function PrompterScreen({ cfg, api, script: initialScript, onExit
       }
       applyScriptPush(m);
     },
+    onConnected: () => {
+      void freshenScript();
+    },
   });
-  const { sendStatus, sendTake, status: wsStatus } = sync;
+  const { sendStatus, sendTake, subscribe, status: wsStatus } = sync;
+
+  // Суфлёр подписывается на комнату ОТКРЫТОГО сценария — правки «прилетают»
+  // даже если он отличается от спаренного по QR (иначе комната не совпадала
+  // и обновления не доходили).
+  useEffect(() => {
+    subscribe(script.id);
+  }, [subscribe, script.id]);
 
   // после применения пуша — вернуть читателя к началу той же секции
   useEffect(() => {

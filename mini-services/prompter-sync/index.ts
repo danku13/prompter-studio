@@ -387,17 +387,21 @@ io.on('connection', (rawSocket) => {
     });
   });
 
-  // 'subscribe' { scriptId } — только editor: сменить активную комнату
+  // 'subscribe' { scriptId } — editor И device: сменить активную комнату.
+  // Для device это сценарий, открытый в суфлёре: устройство подписывается на него
+  // при открытии (prompter-screen) и возвращается к спаренному при выходе в список.
+  // Без этого правки сценария, отличного от спаренного по QR, не доходили до телефона.
   socket.on('subscribe', (payload: unknown) => {
     try {
       const data = socket.data;
-      if (data.role !== 'editor') return;
+      if (data.role !== 'editor' && data.role !== 'device') return;
       const p = (typeof payload === 'object' && payload !== null ? payload : {}) as { scriptId?: unknown };
       const scriptId = typeof p.scriptId === 'string' ? p.scriptId.trim() : '';
       if (!scriptId) return;
+      if (data.scriptId === scriptId && data.rooms.includes(room(scriptId))) return;
       joinRoom(socket, scriptId);
-      sendRoomDevicesTo(socket);
-      log(`editor ${socket.id} subscribed → script ${scriptId}`);
+      if (data.role === 'editor') sendRoomDevicesTo(socket);
+      log(`${data.role} ${socket.id} subscribed → script ${scriptId}`);
     } catch (err) {
       logError('subscribe handler error:', err);
     }

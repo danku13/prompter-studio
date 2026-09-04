@@ -14,7 +14,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
-import { connectSocket } from './ws';
+import { connectSocket, resolveWsMode } from './ws';
 import { getDeviceIdentity, type ConnectionConfig } from './connection';
 import { ApiClient } from './api';
 import type {
@@ -75,7 +75,7 @@ export function useEditorSync(api: ApiClient, scriptId: string | null): EditorSy
         if (disposed) return;
         setRawStatus('connecting');
         sock = connectSocket({
-          mode: info.wsMode,
+          mode: resolveWsMode(info.wsMode),
           wsPort: info.wsPort,
           host: typeof window !== 'undefined' ? window.location.hostname : undefined,
         });
@@ -208,6 +208,8 @@ export interface DeviceSync {
   scriptId: string | null;
   sendStatus: (s: DeviceStatusInput) => void;
   sendTake: (t: TakeInput) => void;
+  /** Подписаться на комнату сценария, открытого в суфлёре (не только спаренного). */
+  subscribe: (scriptId: string | null) => void;
 }
 
 export function useDeviceSync(
@@ -219,6 +221,9 @@ export function useDeviceSync(
   const [rawScriptId, setRawScriptId] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const handlersRef = useRef(handlers);
+  /** Желаемая комната (сценарий, открытый в суфлёре); применяется при подключении
+   *  и при каждом реконнекте — вызов до установки сокета не теряется. */
+  const desiredScriptIdRef = useRef<string | null>(null);
 
   // Держим handlers актуальными (обновление ref в эффекте, не в рендере)
   useEffect(() => {
@@ -240,7 +245,7 @@ export function useDeviceSync(
         const info = await api.serverInfo();
         if (disposed) return;
         setRawStatus('connecting');
-        sock = connectSocket({ mode: info.wsMode, wsPort, host });
+        sock = connectSocket({ mode: resolveWsMode(info.wsMode), wsPort, host });
         socketRef.current = sock;
 
         sock.on('connect', () => {
@@ -252,6 +257,12 @@ export function useDeviceSync(
             if (ack?.ok) {
               setRawScriptId(ack.scriptId ?? null);
               setRawStatus('connected');
+              // после hello устройство сидит в комнате спаренного сценария;
+              // если суфлёр открыл другой — переходим в его комнату
+              const desired = desiredScriptIdRef.current;
+              if (desired && desired !== ack.scriptId) {
+                sock!.emit('subscribe', { scriptId: desired });
+              }
               handlersRef.current.onConnected?.(ack.scriptId ?? null);
             } else {
               setRawStatus('error');
@@ -286,10 +297,18 @@ export function useDeviceSync(
     socketRef.current?.emit('take', t);
   }, []);
 
+  const subscribe = useCallback((scriptId: string | null) => {
+    desiredScriptIdRef.current = scriptId;
+    const sock = socketRef.current;
+    if (scriptId && sock && sock.connected) {
+      sock.emit('subscribe', { scriptId });
+    }
+  }, []);
+
   // Derived: без конфига — idle, до первого события — 'connecting'
   const active = !!(host && wsPort && token);
   const status: SyncStatus = active ? (rawStatus === 'idle' ? 'connecting' : rawStatus) : 'idle';
   const scriptId = active ? rawScriptId : null;
 
-  return { status, scriptId, sendStatus, sendTake };
+  return { status, scriptId, sendStatus, sendTake, subscribe };
 }

@@ -11,12 +11,17 @@ import { Battery, BatteryFull, BatteryLow, BatteryMedium, ChevronLeft, Settings2
 import { cn } from '@/lib/utils';
 import { formatDuration } from '@/lib/text';
 import type { SyncStatus } from '@/lib/client/use-sync';
+import { useToast } from '@/hooks/use-toast';
 
-const WS_DOT: Record<SyncStatus, { className: string; label: string }> = {
+const WS_DOT: Record<SyncStatus, { className: string; label: string; hint?: string }> = {
   connected: { className: 'bg-emerald-500', label: 'Связь с сервером есть' },
   connecting: { className: 'bg-amber-400', label: 'Подключение к серверу…' },
   reconnecting: { className: 'bg-amber-400', label: 'Переподключение…' },
-  error: { className: 'bg-red-500', label: 'Нет связи с сервером' },
+  error: {
+    className: 'bg-red-500',
+    label: 'Нет живой синхронизации',
+    hint: 'Правки с компьютера не будут приходить автоматически. Проверьте, что на нём запущен сервис синхронизации: в папке mini-services/prompter-sync выполните «bun run dev» (порт 3030), затем откройте суфлёр заново.',
+  },
   idle: { className: 'bg-zinc-600', label: 'Синхронизация выключена' },
 };
 
@@ -54,6 +59,16 @@ export default function StatusBar({
 }: StatusBarProps) {
   const ws = WS_DOT[wsStatus];
   const pulse = wsStatus === 'connecting' || wsStatus === 'reconnecting';
+  const { toast } = useToast();
+
+  const showWsHint = () => {
+    toast({
+      title: ws.label,
+      description: ws.hint ?? 'Изменения текста приходят в суфлёр автоматически.',
+      variant: wsStatus === 'error' ? 'destructive' : undefined,
+      duration: wsStatus === 'error' ? 9000 : 4000,
+    });
+  };
 
   return (
     <div className="absolute inset-x-0 top-0 z-20" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 6px)' }}>
@@ -98,10 +113,18 @@ export default function StatusBar({
           </span>
         )}
 
-        <span
+        <button
+          type="button"
+          onClick={showWsHint}
           title={ws.label}
-          className={cn('size-2 shrink-0 rounded-full', ws.className, pulse && 'animate-pulse')}
-        />
+          aria-label={ws.label}
+          className={cn(
+            'flex size-6 shrink-0 items-center justify-center rounded-full transition-colors active:bg-white/10',
+            wsStatus === 'error' && 'bg-red-500/15'
+          )}
+        >
+          <span className={cn('size-2 rounded-full', ws.className, pulse && 'animate-pulse')} />
+        </button>
 
         <button
           type="button"

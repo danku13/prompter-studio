@@ -101,7 +101,8 @@ export interface PairSessionInfo {
  *
  * Клиент → сервер:
  *   'hello'    HelloPayload → ack HelloAck           (валидация токена для device)
- *   'subscribe' {scriptId}                            (editor: сменить активную комнату)
+ *   'subscribe' {scriptId}                            (editor/device: сменить активную комнату;
+ *                                                    device подписывается на сценарий, открытый в суфлёре)
  *   'status'   {recording, sectionId, wpm, battery}   (device → телеметрия)
  *   'take'     {sectionId, sectionTitle, t0, t1}      (device → метка дубля)
  *
