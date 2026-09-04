@@ -41,6 +41,10 @@ yarn-error.log*
 /db/*.db
 /db/*.db-journal
 worklog.md
+# секрет внутреннего broadcast (создаёт WS-мини-сервис)
+mini-services/prompter-sync/runtime-secret
+# детальный аудит безопасности — только локально (репозиторий публичный!)
+docs/security-audit.md
 
 # apk (Capacitor) — генерируемые артефакты
 apk/www/
@@ -56,14 +60,14 @@ apk/mobile-dist/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
+local-
 .claude
 .z-ai-config
 *.log
 dev.log
 dev.out.log
-test
-prompt
+/test
+/prompt
 
 server.log
 # Skills directory

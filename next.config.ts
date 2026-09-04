@@ -13,6 +13,19 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   allowedDevOrigins: ["*.space-z.ai", "localhost"],
+  // Скромные security-заголовки (аудит 2026-09): без X-Frame-Options/CSP
+  // frame-ancestors — превью-панель песочницы встраивает приложение в iframe.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

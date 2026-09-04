@@ -25,6 +25,7 @@ import type { ApiClient } from '@/lib/client/api';
 import type { ConnectionConfig } from '@/lib/client/connection';
 import { useDeviceSync } from '@/lib/client/use-sync';
 import { keepScreenAwake, saveVideoBlob } from '@/lib/client/capacitor-bridge';
+import { isValidScriptPush } from '@/lib/guards';
 import type { ScriptData, ScriptPushMessage, ScriptSection } from '@/lib/types';
 import { useBattery } from '@/lib/hooks/use-battery';
 import { useCamera } from '@/lib/hooks/use-camera';
@@ -94,6 +95,8 @@ export default function PrompterScreen({ cfg, api, script: initialScript, onExit
 
   const applyScriptPush = useCallback(
     (m: ScriptPushMessage) => {
+      // анти-спуфинг/анти-мусор: применяем только структурно валидный сценарий
+      if (!isValidScriptPush(m)) return;
       const keepId = scriptRef.current.sections[currentSectionIndex]?.id ?? null;
       setScript(m.script);
       cacheScript(m.script);
@@ -122,6 +125,7 @@ export default function PrompterScreen({ cfg, api, script: initialScript, onExit
     onScriptPush: (m) => {
       const current = scriptRef.current;
       if (m.scriptId !== current.id || m.revision <= current.revision) return;
+      if (!isValidScriptPush(m)) return; // повреждённый/поддельный payload — игнорируем
       if (recording) {
         // запись идёт — применяем после стопа
         pendingPushRef.current = m;

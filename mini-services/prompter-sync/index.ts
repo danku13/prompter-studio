@@ -15,6 +15,17 @@
  *   POST /internal/broadcast  → body { scriptId, revision, script } → emit 'script' в комнату
  *   всё прочее                → 404 { error: 'not found' }
  *
+ * Безопасность (аудит 2026-09):
+ *   - /internal/broadcast требует секрет X-Broadcast-Secret (env BROADCAST_SECRET
+ *     или файл runtime-secret рядом с сервисом; Next.js читает тот же файл из
+ *     notify.ts). Секрет сравнивается timing-safe. Без секрета широковещание
+ *     в комнаты невозможно — это закрывал вектор подмены текста в суфлёре.
+ *   - WS-подключения с чужим Origin (drive-by страница в браузере пользователя)
+ *     отклоняются: Origin должен совпадать по хосту с Host либо быть Capacitor
+ *     (https://localhost). Небраузерные клиенты без Origin пропускаются.
+ *   - CORS остаётся открытым только для транспорта socket.io; авторизация
+ *     ролей происходит в io.use + hello (токен устройства валидируется в Next.js).
+ *
  * Техническое примечание про внутренний API: socket.io с path '/' перехватывает
  * ЛЮБОЙ http-запрос (engine.io check: `req.url` начинается с '/'), поэтому обычный
  * request-handler httpServer, зарегистрированный до socket.io, никогда не вызывается.
@@ -28,6 +39,10 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Server, type Socket } from 'socket.io';
 
 // ============================== Конфигурация ==============================
@@ -40,6 +55,42 @@ const log = (...args: unknown[]) => console.log('[sync]', ...args);
 const logError = (...args: unknown[]) => console.error('[sync]', ...args);
 
 const room = (scriptId: string) => `script:${scriptId}`;
+
+// ============================== Broadcast-секрет ==============================
+
+const SERVICE_DIR = dirname(fileURLToPath(import.meta.url));
+const SECRET_FILE = join(SERVICE_DIR, 'runtime-secret');
+
+/**
+ * Секрет для POST /internal/broadcast (см. шапку). Источники по приоритету:
+ * env BROADCAST_SECRET → файл runtime-secret (создаётся при первом запуске,
+ * права 0600). Next.js-сторона читает тот же файл из notify.ts.
+ */
+function loadBroadcastSecret(): string {
+  const fromEnv = process.env.BROADCAST_SECRET?.trim();
+  if (fromEnv && fromEnv.length >= 16) return fromEnv;
+  try {
+    const existing = readFileSync(SECRET_FILE, 'utf8').trim();
+    if (existing.length >= 16) return existing;
+  } catch {
+    /* файла нет — создадим ниже */
+  }
+  const secret = randomBytes(32).toString('hex');
+  try {
+    writeFileSync(SECRET_FILE, `${secret}\n`, { mode: 0o600 });
+  } catch (err) {
+    logError('не удалось записать runtime-secret:', err);
+  }
+  return secret;
+}
+
+const BROADCAST_SECRET = loadBroadcastSecret();
+
+function secretMatches(provided: string): boolean {
+  const a = Buffer.from(provided, 'utf8');
+  const b = Buffer.from(BROADCAST_SECRET, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 // ============================== Типы (локально, по контракту types.ts) ==============================
 
@@ -203,6 +254,12 @@ async function handleHttpRequest(
   if (res.headersSent) return;
 
   if (req.method === 'POST' && url.pathname === '/internal/broadcast') {
+    const provided = typeof req.headers['x-broadcast-secret'] === 'string' ? req.headers['x-broadcast-secret'] : '';
+    if (!provided || !secretMatches(provided)) {
+      log(`broadcast rejected: missing/invalid secret (socket ${req.socket.remoteAddress ?? 'unknown'})`);
+      sendJson(res, 403, { error: 'forbidden' });
+      return;
+    }
     let raw: string;
     try {
       raw = await readBody(req);
@@ -243,6 +300,51 @@ io.engine.use((req: IncomingMessage, res: ServerResponse, next: (err?: unknown) 
     logError('internal http handler error:', err);
     sendJson(res, 500, { error: 'internal error' });
   });
+});
+
+// ============================== WS: origin-гейт ==============================
+
+/** hostname из заголовка Host (учитывает [IPv6]:port) */
+function hostnameOf(hostHeader: string): string {
+  let h = hostHeader.trim().toLowerCase();
+  if (h.startsWith('[')) {
+    const end = h.indexOf(']');
+    return end === -1 ? h : h.slice(1, end);
+  }
+  const idx = h.lastIndexOf(':');
+  if (idx !== -1) h = h.slice(0, idx);
+  return h;
+}
+
+/** Origin допустим: хост Origin = хост Host, либо Capacitor-приложение (localhost) */
+function isAllowedOrigin(origin: string, host: string): boolean {
+  try {
+    const originHost = new URL(origin).hostname.toLowerCase();
+    if (originHost === 'localhost' || originHost === '127.0.0.1' || originHost === '::1') {
+      // APK: страница живёт на https://localhost, а WS ходит на LAN-хост сервера
+      return true;
+    }
+    const hostName = hostnameOf(host);
+    return hostName !== '' && originHost === hostName;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Отсекаем браузерные cross-origin подключения (вредоносная страница в браузере
+ * пользователя, пытающаяся подключиться к LAN-серверу). Небраузерные клиенты
+ * (node/curl/APK-WebView без Origin) не затрагиваются.
+ */
+io.use((socket, next) => {
+  const origin = socket.handshake.headers.origin;
+  const host = socket.handshake.headers.host ?? '';
+  if (typeof origin === 'string' && origin && !isAllowedOrigin(origin, host)) {
+    log(`socket rejected: cross-origin (origin=${origin}, host=${host})`);
+    next(new Error('origin not allowed'));
+    return;
+  }
+  next();
 });
 
 // ============================== WS: hello ==============================
@@ -471,7 +573,7 @@ if (!g.__prompterSyncListening) {
   httpServer.listen(PORT, () => {
     log(`prompter-sync is up on :${PORT} (socket.io path '/', transports: polling+websocket)`);
     log(`NEXT_URL = ${NEXT_URL}`);
-    log(`rooms: script:<scriptId>; internal POST /internal/broadcast; healthcheck GET /`);
+    log(`rooms: script:<scriptId>; internal POST /internal/broadcast (secret: on); healthcheck GET /`);
   });
 }
 

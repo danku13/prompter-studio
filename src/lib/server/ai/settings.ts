@@ -126,6 +126,11 @@ export function resolveProviderConfig(row: AiConfig, provider?: AiProviderName):
 /**
  * Частичное обновление настроек.
  * key: undefined — не менять; null/'' — стереть; строка — записать.
+ *
+ * Анти-эксфильтрация (аудит 2026-09): смена Base URL для провайдера, у которого
+ * уже есть сохранённый ключ, требует передать ключ в том же запросе — иначе
+ * неаутентифицированный PUT переписал бы адрес, и следующий AI-вызов отправил
+ * бы сохранённый ключ на сервер злоумышленника.
  */
 export async function updateAiConfig(update: AiSettingsUpdate): Promise<AiConfig> {
   const row = await readAiConfig();
@@ -133,16 +138,41 @@ export async function updateAiConfig(update: AiSettingsUpdate): Promise<AiConfig
 
   if (update.defaultProvider) data.defaultProvider = update.defaultProvider;
 
+  const normBaseUrl = (u: string | null | undefined, fallback: string): string =>
+    (u?.trim() || fallback).replace(/\/+$/, '');
+
   if (update.openai) {
     const { key, baseUrl, model } = update.openai;
     if (key !== undefined) data.openaiKey = key?.trim() || null;
-    if (baseUrl !== undefined) data.openaiBaseUrl = baseUrl.trim() || null;
+    if (baseUrl !== undefined && baseUrl.trim() !== '') {
+      const storedBase = normBaseUrl(row.openaiBaseUrl, OPENAI_DEFAULTS.baseUrl);
+      const newBase = normBaseUrl(baseUrl, OPENAI_DEFAULTS.baseUrl);
+      if (newBase !== storedBase && row.openaiKey?.trim() && !key?.trim()) {
+        throw new HttpError(
+          400,
+          'Смена Base URL для OpenAI требует ввести API-ключ заново в том же сохранении: иначе сохранённый ключ ушёл бы на новый адрес.',
+          'base_url_requires_key'
+        );
+      }
+      data.openaiBaseUrl = baseUrl.trim();
+    }
     if (model !== undefined) data.openaiModel = model.trim() || null;
   }
   if (update.anthropic) {
     const { key, baseUrl, model } = update.anthropic;
     if (key !== undefined) data.anthropicKey = key?.trim() || null;
-    if (baseUrl !== undefined) data.anthropicBaseUrl = baseUrl.trim() || null;
+    if (baseUrl !== undefined && baseUrl.trim() !== '') {
+      const storedBase = normBaseUrl(row.anthropicBaseUrl, ANTHROPIC_DEFAULTS.baseUrl);
+      const newBase = normBaseUrl(baseUrl, ANTHROPIC_DEFAULTS.baseUrl);
+      if (newBase !== storedBase && row.anthropicKey?.trim() && !key?.trim()) {
+        throw new HttpError(
+          400,
+          'Смена Base URL для Claude требует ввести API-ключ заново в том же сохранении: иначе сохранённый ключ ушёл бы на новый адрес.',
+          'base_url_requires_key'
+        );
+      }
+      data.anthropicBaseUrl = baseUrl.trim();
+    }
     if (model !== undefined) data.anthropicModel = model.trim() || null;
   }
 

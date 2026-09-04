@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ApiClient, ApiError } from '@/lib/client/api';
 import { useEditorSync } from '@/lib/client/use-sync';
+import { isValidScriptPush } from '@/lib/guards';
 import type { AiSubsectionDraft, ScriptData, ScriptSection, ScriptSummary, TakeRating, TakeRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -568,6 +569,16 @@ export default function DesktopApp() {
       m.revision > cur.revision &&
       !inFlightRef.current
     ) {
+      // анти-спуфинг/анти-мусор: применяем только структурно валидный сценарий
+      if (!isValidScriptPush(m)) {
+        toast({
+          title: 'Отклонён некорректный сценарий',
+          description: 'Полученные по синхронизации данные повреждены или подозрительны.',
+          variant: 'destructive',
+        });
+        clearScriptPushRef.current();
+        return;
+      }
       applyLocalScript(m.script);
       setEditTick(0);
       setSaveStatus('saved');
