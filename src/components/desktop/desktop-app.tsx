@@ -10,12 +10,15 @@
 
 import * as React from 'react';
 import {
+  CircleHelp,
+  CirclePlay,
   Clapperboard,
   Cloud,
   CloudOff,
   FileDown,
   FileText,
   Loader2,
+  Lock,
   MoreHorizontal,
   PanelLeft,
   PanelRight,
@@ -25,6 +28,7 @@ import {
 } from 'lucide-react';
 import { ApiClient, ApiError } from '@/lib/client/api';
 import { useEditorSync } from '@/lib/client/use-sync';
+import { PIN_REQUIRED_EVENT, getTicket } from '@/lib/client/pin-store';
 import { isValidScriptPush } from '@/lib/guards';
 import type { AiSubsectionDraft, ScriptData, ScriptSection, ScriptSummary, TakeRating, TakeRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -39,7 +43,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { AiSettingsDialog } from './ai-settings-dialog';
+import { HelpDialog } from './help-dialog';
+import { OnboardingTour } from './onboarding-tour';
 import { PairDialog } from './pair-dialog';
+import { PinSettingsDialog, PinUnlockOverlay } from './pin-gate';
 import { ScriptSidebar } from './script-sidebar';
 import { SectionsEditor } from './sections-editor';
 import { SyncPanel } from './sync-panel';
@@ -116,6 +123,46 @@ export default function DesktopApp() {
   const api = React.useMemo(() => new ApiClient(), []);
   const { toast } = useToast();
 
+  // ---------- PIN-доступ (P0 «кафе/коворкинг») ----------
+  // 'checking' — спрашиваем server-info; 'locked' — показываем экран ввода PIN;
+  // до разблокировки данные не грузим и WS не подключаем.
+  const [authState, setAuthState] = React.useState<'checking' | 'locked' | 'unlocked'>('checking');
+  const [lockReason, setLockReason] = React.useState<string | null>(null);
+  const [pinEnabled, setPinEnabled] = React.useState(false);
+  const [pinOpen, setPinOpen] = React.useState(false);
+  const ready = authState === 'unlocked';
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await api.serverInfo();
+        if (cancelled) return;
+        if (info.pinRequired) {
+          setPinEnabled(true);
+          // живой тикет из sessionStorage допустим: если он протух — первый же
+          // запрос вернёт 401 pin_required и перезалочит через событие
+          setAuthState(getTicket() ? 'unlocked' : 'locked');
+        } else {
+          setPinEnabled(false);
+          setAuthState('unlocked');
+        }
+      } catch {
+        // офлайн: не блокируем — приложение само покажет сетевые ошибки
+        if (!cancelled) setAuthState('unlocked');
+      }
+    })();
+    const onPinRequired = () => {
+      setLockReason('Сессия истекла — введите PIN заново');
+      setAuthState('locked');
+    };
+    window.addEventListener(PIN_REQUIRED_EVENT, onPinRequired);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(PIN_REQUIRED_EVENT, onPinRequired);
+    };
+  }, [api]);
+
   // ---------- список сценариев ----------
   const [scripts, setScripts] = React.useState<ScriptSummary[] | null>(null);
   const [listError, setListError] = React.useState<string | null>(null);
@@ -139,10 +186,14 @@ export default function DesktopApp() {
   const [aiOpen, setAiOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [panelOpen, setPanelOpen] = React.useState(false);
+  /** онбординг-курс и справка */
+  const [helpOpen, setHelpOpen] = React.useState(false);
+  const [tourOpen, setTourOpen] = React.useState(false);
   /** оптимистичные правки дублей поверх sync.takes (null = удалён) */
   const [takeOverrides, setTakeOverrides] = React.useState<Record<string, TakeRecord | null>>({});
 
-  const sync = useEditorSync(api, activeScriptId);
+  // пока залочены — синхронизация не нужна (socket не подключается)
+  const sync = useEditorSync(api, ready ? activeScriptId : null);
 
   // refs с актуальными значениями для асинхронных колбэков
   const scriptRef = React.useRef<ScriptData | null>(null);
@@ -202,6 +253,7 @@ export default function DesktopApp() {
   }, [api]);
 
   React.useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     (async () => {
       setListError(null);
@@ -222,10 +274,11 @@ export default function DesktopApp() {
     return () => {
       cancelled = true;
     };
-  }, [api, listTick]);
+  }, [api, listTick, ready]);
 
   // ---------- загрузка активного сценария ----------
   React.useEffect(() => {
+    if (!ready) return;
     if (!activeScriptId) {
       applyLocalScript(null);
       setScriptError(null);
@@ -253,7 +306,7 @@ export default function DesktopApp() {
     return () => {
       cancelled = true;
     };
-  }, [activeScriptId, api, applyLocalScript, scriptLoadTick]);
+  }, [activeScriptId, api, applyLocalScript, ready, scriptLoadTick]);
 
   // сброс оптимистичных дублей при смене сценария
   React.useEffect(() => {
@@ -716,6 +769,27 @@ export default function DesktopApp() {
           )}
         </div>
         <div className="flex-1" />
+        {pinEnabled && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden size-9 text-muted-foreground sm:inline-flex"
+            onClick={() => setPinOpen(true)}
+            title="PIN-код включён — настройки доступа"
+          >
+            <Lock className="size-4" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden size-9 text-muted-foreground sm:inline-flex"
+          onClick={() => setHelpOpen(true)}
+          title="Помощь и FAQ"
+          aria-label="Помощь и FAQ"
+        >
+          <CircleHelp className="size-4" />
+        </Button>
         <ThemeToggle />
         <Button
           variant="ghost"
@@ -761,6 +835,20 @@ export default function DesktopApp() {
             <DropdownMenuItem onClick={() => exportScript('md')}>
               <FileText className="size-4" />
               Скачать .md
+            </DropdownMenuItem>
+            <DropdownMenuLabel>Доступ</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setPinOpen(true)}>
+              <Lock className="size-4" />
+              PIN-код…
+            </DropdownMenuItem>
+            <DropdownMenuLabel>Справка</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => setHelpOpen(true)}>
+              <CircleHelp className="size-4" />
+              Помощь и FAQ…
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTourOpen(true)}>
+              <CirclePlay className="size-4" />
+              Пройти обучение заново…
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -848,6 +936,48 @@ export default function DesktopApp() {
 
       {/* ---------- настройки AI-помощника (BYOK) ---------- */}
       <AiSettingsDialog open={aiOpen} onOpenChange={setAiOpen} api={api} />
+
+      {/* ---------- PIN-доступ (P0 «кафе/коворкинг») ---------- */}
+      {authState === 'checking' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background">
+          <Loader2 className="size-8 animate-spin text-primary" aria-label="Загрузка" />
+        </div>
+      )}
+      {authState === 'locked' && (
+        <PinUnlockOverlay
+          api={api}
+          reason={lockReason}
+          onUnlocked={() => {
+            setLockReason(null);
+            setAuthState('unlocked');
+          }}
+        />
+      )}
+      <PinSettingsDialog
+        open={pinOpen}
+        onOpenChange={setPinOpen}
+        api={api}
+        enabled={pinEnabled}
+        onApplied={(enabled) => {
+          setPinEnabled(enabled);
+          toast({ title: enabled ? 'PIN-код обновлён' : 'PIN-код отключён' });
+        }}
+      />
+
+      {/* ---------- онбординг-курс и справка ---------- */}
+      <OnboardingTour
+        active={authState === 'unlocked' && !!scripts}
+        open={tourOpen}
+        onOpenChange={setTourOpen}
+      />
+      <HelpDialog
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        onStartOnboarding={() => {
+          setHelpOpen(false);
+          setTourOpen(true);
+        }}
+      />
     </div>
   );
 }
