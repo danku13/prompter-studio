@@ -17,7 +17,7 @@ function Row({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm text-zinc-300">{label}</span>
-      {value !== undefined && <span className="text-sm tabular-nums text-amber-400">{value}</span>}
+      {value !== undefined && <span className="text-sm tabular-nums text-blue-400">{value}</span>}
     </div>
   );
 }

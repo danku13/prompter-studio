@@ -3,6 +3,14 @@
 /**
  * Диалог импорта текста: строки с «##» — заголовки секций,
  * остальное — содержимое. Живой предпросмотр количества секций.
+ *
+ * Высота диалога ограничена 80% экрана: при вставке длинного текста
+ * текстовый блок растёт до свободного лимита, дальше включается
+ * его собственная прокрутка (окно никогда не выезжает за экран).
+ *
+ * Сюда же «приземляется» файл, брошенный в область секций редактора
+ * (drag-and-drop .txt / .md): диалог открывается с предзаполненным
+ * текстом, пользователь видит предпросмотр и подтверждает импорт.
  */
 
 import * as React from 'react';
@@ -24,13 +32,21 @@ export interface ImportedSection {
   content: string;
 }
 
-/** Парсинг: «## Название» начинает новую секцию, остальное — её содержимое */
+/**
+ * Парсинг:
+ *  - «## Название» (и deeper-заголовки md) — заголовок новой секции;
+ *  - «# Название» (h1 — так экспорт .md пишет имя сценария) — пропускается;
+ *  - остальное — содержимое секции.
+ */
 export function parseImportText(text: string): ImportedSection[] {
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const raw: { title: string; lines: string[] }[] = [];
   for (const line of lines) {
-    if (/^##\s?/.test(line)) {
-      raw.push({ title: line.replace(/^##\s?/, '').trim(), lines: [] });
+    if (/^#{2,}\s?/.test(line)) {
+      raw.push({ title: line.replace(/^#{2,}\s?/, '').trim(), lines: [] });
+    } else if (/^#\s+/.test(line)) {
+      // заголовок всего документа (h1) — секции не создаёт
+      continue;
     } else {
       if (raw.length === 0) raw.push({ title: '', lines: [] });
       raw[raw.length - 1].lines.push(line);
@@ -48,10 +64,17 @@ export interface ImportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (sections: ImportedSection[]) => void;
+  /** текст для предзаполнения (файл из drag-and-drop); null — обычное открытие */
+  seed?: string | null;
 }
 
-export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps) {
+export function ImportDialog({ open, onOpenChange, onImport, seed }: ImportDialogProps) {
   const [text, setText] = React.useState('');
+
+  // предзаполнение при открытии с брошенным файлом
+  React.useEffect(() => {
+    if (open && seed != null) setText(seed);
+  }, [open, seed]);
 
   const parsed = React.useMemo(() => parseImportText(text), [text]);
   const words = React.useMemo(
@@ -68,15 +91,16 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[80dvh] flex-col gap-4 sm:max-w-xl">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            <FileUp className="size-5 text-amber-600" />
+            <FileUp className="size-5 text-primary" />
             Импорт текста
           </DialogTitle>
           <DialogDescription>
             Строка, начинающаяся с «##», станет названием новой секции, остальной текст — её
-            содержимым. Пустые строки разделяют абзацы.
+            содержимым. Пустые строки разделяют абзацы. Файл .txt или .md можно перетащить
+            прямо в редактор.
           </DialogDescription>
         </DialogHeader>
 
@@ -84,10 +108,11 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder={'## Вступление\nПривет! В этом видео…\n\n## Основная часть\nТекст основного блока'}
-          className="min-h-64"
+          aria-label="Текст для импорта"
+          className="min-h-32 max-h-[50dvh] resize-none overflow-y-auto"
         />
 
-        <div className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+        <div className="shrink-0 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
           {parsed.length > 0 ? (
             <>
               Будет создано секций:{' '}
@@ -99,15 +124,11 @@ export function ImportDialog({ open, onOpenChange, onImport }: ImportDialogProps
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Отмена
           </Button>
-          <Button
-            className="bg-amber-500 text-white hover:bg-amber-600"
-            disabled={parsed.length === 0}
-            onClick={doImport}
-          >
+          <Button disabled={parsed.length === 0} onClick={doImport}>
             Создать секции
           </Button>
         </DialogFooter>

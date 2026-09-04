@@ -174,7 +174,7 @@ export function AiSettingsDialog({ open, onOpenChange, api }: AiSettingsDialogPr
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="size-4" />
             </span>
             AI-помощник — свои ключи (BYOK)
@@ -214,7 +214,7 @@ export function AiSettingsDialog({ open, onOpenChange, api }: AiSettingsDialogPr
                     className={cn(
                       'flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-sm transition-colors',
                       defaultProvider === opt.value
-                        ? 'border-amber-500 bg-amber-500/10 font-medium text-amber-700 dark:text-amber-400'
+                        ? 'border-primary bg-primary/10 font-medium text-primary'
                         : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                     )}
                   >
@@ -381,7 +381,6 @@ export function AiSettingsDialog({ open, onOpenChange, api }: AiSettingsDialogPr
             Отмена
           </Button>
           <Button
-            className="bg-amber-500 text-white hover:bg-amber-600"
             disabled={saving || loading || !hasChanges}
             onClick={() => void save()}
           >

@@ -104,7 +104,7 @@ export default function SaveDialog({
             type="button"
             onClick={onSave}
             disabled={saving || !blob}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 text-sm font-semibold text-zinc-950 transition-colors active:bg-amber-400 disabled:opacity-60"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-400 text-sm font-semibold text-zinc-950 transition-colors active:bg-blue-500 disabled:opacity-60"
           >
             {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
             {saving ? 'Сохранение…' : 'Сохранить видео'}

@@ -114,7 +114,7 @@ export function ScriptSidebar({
 
         {/* inline-создание */}
         {creating && (
-          <div className="rounded-lg border border-amber-400/70 bg-amber-50/60 p-2 dark:border-amber-900 dark:bg-amber-950/30">
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-2">
             <Input
               autoFocus
               value={draftTitle}
@@ -129,7 +129,7 @@ export function ScriptSidebar({
             <div className="mt-2 flex items-center gap-1">
               <Button
                 size="sm"
-                className="h-7 flex-1 bg-amber-500 text-white hover:bg-amber-600"
+                className="h-7 flex-1"
                 onClick={submitCreate}
               >
                 <Plus className="size-3.5" />
@@ -155,7 +155,6 @@ export function ScriptSidebar({
             <p className="text-sm text-muted-foreground">Сценариев пока нет</p>
             <Button
               size="sm"
-              className="bg-amber-500 text-white hover:bg-amber-600"
               onClick={() => setCreating(true)}
             >
               <Plus className="size-3.5" />

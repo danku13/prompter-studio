@@ -204,7 +204,7 @@ export default function ScriptPicker({ cfg, api, initialScript, onOpenScript, on
             >
               <div className="flex items-center justify-between gap-3">
                 <p className="truncate text-[15px] font-medium text-zinc-100">{s.title}</p>
-                {openingId === s.id && <Loader2 className="size-4 shrink-0 animate-spin text-amber-400" />}
+                {openingId === s.id && <Loader2 className="size-4 shrink-0 animate-spin text-blue-400" />}
               </div>
               <p className="mt-1 text-xs text-zinc-500">
                 {s.sectionCount} секц. · {s.wordCount} слов · ~{formatDuration(s.estSeconds)}

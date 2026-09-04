@@ -5,8 +5,8 @@
  *
  * Полоса ~45% экрана, позиция top/center/bottom + тонкая подстройка (offset %).
  * Внутри — контейнер overflow-hidden, контент (секции подряд) двигается
- * translate3d из хука use-prompter-scroll. Зона чтения — две amber-линии
- * на 30%/70% полосы. Зеркалирование текста — scaleX(-1) на обёртке контента.
+ * translate3d из хука use-prompter-scroll. Зона чтения — две синие линии
+ * (брендовый акцент, blue-400) на 30%/70% полосы. Зеркалирование текста — scaleX(-1) на обёртке контента.
  */
 
 import type { RefObject } from 'react';
@@ -55,13 +55,13 @@ export default function PrompterOverlay({ sections, settings, containerRef, cont
       {/* Зона чтения */}
       {settings.readingZone && (
         <>
-          <div className="absolute inset-x-0 top-[30%] h-px bg-amber-400/60" />
-          <div className="absolute inset-x-0 top-[70%] h-px bg-amber-400/60" />
+          <div className="absolute inset-x-0 top-[30%] h-px bg-blue-400/60" />
+          <div className="absolute inset-x-0 top-[70%] h-px bg-blue-400/60" />
           <div className="absolute inset-x-0 top-[30%] bottom-[30%] bg-gradient-to-b from-transparent via-white/[0.06] to-transparent" />
-          <div className="absolute left-2 top-[30%] size-1.5 -translate-y-1/2 rounded-full bg-amber-400/80" />
-          <div className="absolute left-2 top-[70%] size-1.5 -translate-y-1/2 rounded-full bg-amber-400/80" />
-          <div className="absolute right-2 top-[30%] size-1.5 -translate-y-1/2 rounded-full bg-amber-400/80" />
-          <div className="absolute right-2 top-[70%] size-1.5 -translate-y-1/2 rounded-full bg-amber-400/80" />
+          <div className="absolute left-2 top-[30%] size-1.5 -translate-y-1/2 rounded-full bg-blue-400/80" />
+          <div className="absolute left-2 top-[70%] size-1.5 -translate-y-1/2 rounded-full bg-blue-400/80" />
+          <div className="absolute right-2 top-[30%] size-1.5 -translate-y-1/2 rounded-full bg-blue-400/80" />
+          <div className="absolute right-2 top-[70%] size-1.5 -translate-y-1/2 rounded-full bg-blue-400/80" />
         </>
       )}
 

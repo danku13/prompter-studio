@@ -159,8 +159,8 @@ export default function ConnectScreen({ onConnected }: ConnectScreenProps) {
     <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-zinc-950 px-6 py-12">
       <div className="flex w-full max-w-sm flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-3">
-          <div className="flex size-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
-            <Clapperboard className="size-8 text-amber-400" />
+          <div className="flex size-16 items-center justify-center rounded-2xl border border-blue-400/30 bg-blue-400/10">
+            <Clapperboard className="size-8 text-blue-400" />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-bold text-zinc-100">Prompter Studio</h1>
@@ -170,7 +170,7 @@ export default function ConnectScreen({ onConnected }: ConnectScreenProps) {
 
         {phase === 'auto' ? (
           <div className="flex flex-col items-center gap-3 py-6">
-            <Loader2 className="size-8 animate-spin text-amber-400" />
+            <Loader2 className="size-8 animate-spin text-blue-400" />
             <p className="text-sm text-zinc-400">Подключение к серверу…</p>
           </div>
         ) : (
@@ -192,7 +192,7 @@ export default function ConnectScreen({ onConnected }: ConnectScreenProps) {
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-amber-500/60"
+                  className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-blue-400/60"
                 />
               </div>
             )}
@@ -209,7 +209,7 @@ export default function ConnectScreen({ onConnected }: ConnectScreenProps) {
                 autoCapitalize="none"
                 autoCorrect="off"
                 spellCheck={false}
-                className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-amber-500/60"
+                className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-zinc-100 outline-none transition-colors placeholder:text-zinc-600 focus:border-blue-400/60"
               />
             </div>
 
@@ -218,7 +218,7 @@ export default function ConnectScreen({ onConnected }: ConnectScreenProps) {
             <button
               type="submit"
               disabled={busy}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 text-sm font-semibold text-zinc-950 transition-colors active:bg-amber-400 disabled:opacity-60"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-400 text-sm font-semibold text-zinc-950 transition-colors active:bg-blue-500 disabled:opacity-60"
             >
               {busy && <Loader2 className="size-4 animate-spin" />}
               {busy ? 'Подключение…' : 'Подключиться'}

@@ -2,7 +2,7 @@
 
 /**
  * Слой (e) суфлёра: обратный отсчёт 3 → 2 → 1 → «Съёмка!»
- * перед стартом прокрутки и записи. Гигантские цифры, amber-акцент.
+ * перед стартом прокрутки и записи. Гигантские цифры, синий брендовый акцент.
  */
 
 import { AnimatePresence, motion } from 'framer-motion';
@@ -30,7 +30,7 @@ export default function CountdownOverlay({ phase }: { phase: CountdownPhase }) {
               transition={{ duration: 0.22, ease: 'easeOut' }}
               className={
                 phase === 'go'
-                  ? 'text-6xl font-bold text-amber-400'
+                  ? 'text-6xl font-bold text-blue-400'
                   : 'text-[34vw] font-bold leading-none tabular-nums text-white'
               }
             >

@@ -42,6 +42,7 @@ import { PairDialog } from './pair-dialog';
 import { ScriptSidebar } from './script-sidebar';
 import { SectionsEditor } from './sections-editor';
 import { SyncPanel } from './sync-panel';
+import { ThemeToggle } from './theme-toggle';
 import type { ImportedSection } from './import-dialog';
 import {
   buildExportText,
@@ -686,7 +687,7 @@ export default function DesktopApp() {
           <PanelLeft className="size-4" />
         </Button>
         <div className="flex items-center gap-2">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white shadow-sm">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
             <Clapperboard className="size-4" />
           </span>
           <span className="hidden text-sm font-semibold tracking-tight sm:inline">
@@ -704,10 +705,11 @@ export default function DesktopApp() {
           )}
         </div>
         <div className="flex-1" />
+        <ThemeToggle />
         <Button
           variant="ghost"
           size="icon"
-          className="size-9 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400"
+          className="size-9 text-primary hover:bg-primary/10"
           onClick={() => setAiOpen(true)}
           title="AI-помощник — свои ключи (OpenAI / Claude)"
         >
@@ -715,7 +717,7 @@ export default function DesktopApp() {
         </Button>
         <Button
           size="sm"
-          className="bg-amber-500 text-white shadow-sm hover:bg-amber-600"
+          className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
           onClick={() => setPairOpen(true)}
         >
           <Smartphone className="size-4" />
@@ -726,7 +728,7 @@ export default function DesktopApp() {
           asChild
           variant="ghost"
           size="icon"
-          className="text-muted-foreground"
+          className="hidden text-muted-foreground sm:inline-flex"
           title="Открыть мобильную версию (для отладки)"
         >
           <a href="/?ui=mobile" target="_blank" rel="noopener noreferrer">

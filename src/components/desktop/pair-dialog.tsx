@@ -133,7 +133,7 @@ export function PairDialog({
       <DialogContent className="max-h-[90vh] gap-4 overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500 text-white shadow-sm">
+            <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
               <Smartphone className="size-4" />
             </span>
             Подключить телефон

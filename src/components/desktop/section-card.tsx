@@ -119,7 +119,7 @@ export function SectionCard({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400"
+                className="size-7 text-primary hover:bg-primary/10"
                 title="AI-помощник: улучшить или разбить текст"
               >
                 <Sparkles className="size-3.5" />

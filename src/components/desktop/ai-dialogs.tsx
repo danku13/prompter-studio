@@ -178,7 +178,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
       <DialogContent className="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="size-4 text-amber-500" />
+            <Wand2 className="size-4 text-primary" />
             Улучшить текст секции
             {title.trim() ? <span className="text-muted-foreground">· «{title.trim()}»</span> : null}
           </DialogTitle>
@@ -201,11 +201,11 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
                   className={cn(
                     'flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-1.5 text-center transition-colors',
                     mode === m.value
-                      ? 'border-amber-500 bg-amber-500/10'
+                      ? 'border-primary bg-primary/10'
                       : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                   )}
                 >
-                  <span className={cn('text-sm', mode === m.value && 'font-medium text-amber-700 dark:text-amber-400')}>
+                  <span className={cn('text-sm', mode === m.value && 'font-medium text-primary')}>
                     {m.label}
                   </span>
                   <span className="text-[11px] leading-tight opacity-70">{m.hint}</span>
@@ -229,7 +229,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
 
           <Button
             type="button"
-            className="w-full bg-amber-500 text-white hover:bg-amber-600"
+            className="w-full"
             disabled={!canGenerate || loading}
             onClick={() => void generate()}
           >
@@ -274,7 +274,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
                       className={cn(
                         'flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
                         view === v
-                          ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                          ? 'bg-primary/15 text-primary'
                           : 'text-muted-foreground hover:text-foreground'
                       )}
                     >
@@ -324,7 +324,7 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
                           'font-medium tabular-nums',
                           delta < 0
                             ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-amber-600 dark:text-amber-400'
+                            : 'text-primary'
                         )}
                       >
                         объём {delta > 0 ? '+' : '−'}
@@ -361,7 +361,6 @@ export function AiImproveDialog({ open, onOpenChange, api, title, content, wpm, 
             Отмена
           </Button>
           <Button
-            className="bg-amber-500 text-white hover:bg-amber-600"
             disabled={loading || !result.trim()}
             onClick={() => {
               onApply(result);
@@ -445,7 +444,7 @@ export function AiSplitDialog({ open, onOpenChange, api, title, content, onApply
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Scissors className="size-4 text-amber-500" />
+            <Scissors className="size-4 text-primary" />
             Разбить секцию на подсекции
             {title.trim() ? <span className="text-muted-foreground">· «{title.trim()}»</span> : null}
           </DialogTitle>
@@ -467,11 +466,11 @@ export function AiSplitDialog({ open, onOpenChange, api, title, content, onApply
                   className={cn(
                     'flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-1 transition-colors',
                     maxWords === s.value
-                      ? 'border-amber-500 bg-amber-500/10'
+                      ? 'border-primary bg-primary/10'
                       : 'border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                   )}
                 >
-                  <span className={cn('text-sm', maxWords === s.value && 'font-medium text-amber-700 dark:text-amber-400')}>
+                  <span className={cn('text-sm', maxWords === s.value && 'font-medium text-primary')}>
                     {s.label}
                   </span>
                   <span className="text-[11px] leading-tight opacity-70">{s.hint}</span>
@@ -482,7 +481,7 @@ export function AiSplitDialog({ open, onOpenChange, api, title, content, onApply
 
           <Button
             type="button"
-            className="w-full bg-amber-500 text-white hover:bg-amber-600"
+            className="w-full"
             disabled={content.trim().length === 0 || loading}
             onClick={() => void generate()}
           >
@@ -551,7 +550,6 @@ export function AiSplitDialog({ open, onOpenChange, api, title, content, onApply
             Отмена
           </Button>
           <Button
-            className="bg-amber-500 text-white hover:bg-amber-600"
             disabled={loading || validParts.length < 2}
             onClick={() => {
               onApply(validParts);

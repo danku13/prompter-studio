@@ -58,7 +58,7 @@ export default function ControlBar({
         {/* Тонкий прогресс сценария */}
         <div className="mb-1 h-0.5 overflow-hidden rounded-full bg-white/10">
           <div
-            className="h-full rounded-full bg-amber-400/80"
+            className="h-full rounded-full bg-blue-400/80"
             style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }}
           />
         </div>

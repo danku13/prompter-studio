@@ -64,7 +64,6 @@ export function DevicesPanel({ devices, status, sections, onConnect }: DevicesPa
           </div>
           <Button
             size="sm"
-            className="bg-amber-500 text-white hover:bg-amber-600"
             onClick={onConnect}
           >
             <Smartphone className="size-3.5" />

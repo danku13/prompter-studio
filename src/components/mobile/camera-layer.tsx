@@ -53,7 +53,7 @@ export default function CameraLayer({ videoRef, facing, error, retry, rehearsalM
             <button
               type="button"
               onClick={onEnterRehearsal}
-              className="h-12 rounded-xl bg-amber-500 px-6 text-sm font-semibold text-zinc-950 transition-colors active:bg-amber-400"
+              className="h-12 rounded-xl bg-blue-400 px-6 text-sm font-semibold text-zinc-950 transition-colors active:bg-blue-500"
             >
               Продолжить без записи
             </button>
