@@ -62,3 +62,20 @@ model PairToken {
 
   @@index([scriptId])
 }
+
+// BYOK-конфигурация AI-помощника (агент 5). Единственная строка с id='default'.
+// Ключи хранятся только на компьютере пользователя (SQLite) и уходят
+// исключительно в API выбранного провайдера. Клиенту отдаются масками.
+model AiConfig {
+  id               String   @id @default("default")
+  // 'builtin' | 'openai' | 'anthropic'
+  defaultProvider  String   @default("builtin")
+  openaiKey        String?
+  openaiBaseUrl    String?
+  openaiModel      String?
+  anthropicKey     String?
+  anthropicBaseUrl String?
+  anthropicModel   String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

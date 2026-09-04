@@ -7,7 +7,8 @@
 
 import * as React from 'react';
 import { AlertTriangle, Gauge, ListPlus, Plus, RefreshCw, Upload } from 'lucide-react';
-import type { ScriptData, ScriptSection } from '@/lib/types';
+import type { AiSubsectionDraft, ScriptData, ScriptSection } from '@/lib/types';
+import { ApiClient } from '@/lib/client/api';
 import { countWords, estimateSeconds, formatDuration } from '@/lib/text';
 import { cn } from '@/lib/utils';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,6 +26,8 @@ export interface SectionsEditorProps {
   loading: boolean;
   error: string | null;
   wpm: number;
+  /** REST-клиент для AI-диалогов секций */
+  api: ApiClient;
   onWpmChange: (wpm: number) => void;
   onTitleChange: (title: string) => void;
   onSectionChange: (id: string, patch: Partial<ScriptSection>) => void;
@@ -32,6 +35,8 @@ export interface SectionsEditorProps {
   onDuplicateSection: (index: number) => void;
   onRemoveSection: (index: number) => void;
   onAddSection: () => void;
+  /** заменить секцию по индексу на подсекции (AI-разбиение) */
+  onSplitSection: (index: number, parts: AiSubsectionDraft[]) => void;
   onImportSections: (sections: ImportedSection[]) => void;
   onRetryLoad: () => void;
 }
@@ -41,6 +46,7 @@ export function SectionsEditor({
   loading,
   error,
   wpm,
+  api,
   onWpmChange,
   onTitleChange,
   onSectionChange,
@@ -48,6 +54,7 @@ export function SectionsEditor({
   onDuplicateSection,
   onRemoveSection,
   onAddSection,
+  onSplitSection,
   onImportSections,
   onRetryLoad,
 }: SectionsEditorProps) {
@@ -197,10 +204,12 @@ export function SectionsEditor({
                 index={i}
                 total={sections.length}
                 wpm={wpm}
+                api={api}
                 onChange={(patch) => onSectionChange(s.id, patch)}
                 onMove={(dir) => onMoveSection(i, dir)}
                 onDuplicate={() => onDuplicateSection(i)}
                 onRemove={() => onRemoveSection(i)}
+                onSplit={(parts) => onSplitSection(i, parts)}
               />
             ))}
             <div className="flex flex-wrap items-center gap-2 pt-1 pb-6">

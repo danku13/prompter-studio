@@ -173,6 +173,68 @@ export interface ScriptPushMessage {
   script: ScriptData;
 }
 
+// ================= AI-помощник (BYOK) =================
+/**
+ * Провайдеры для AI-функций редактора:
+ *  - 'builtin'   — встроенный (без ключа, работает «из коробки»);
+ *  - 'openai'    — совместимость с OpenAI API (включая OpenAI-совместимые прокси);
+ *  - 'anthropic' — совместимость с Claude (Anthropic Messages API).
+ */
+
+export const AI_PROVIDERS = ['builtin', 'openai', 'anthropic'] as const;
+export type AiProviderName = (typeof AI_PROVIDERS)[number];
+
+export type AiImproveMode = 'polish' | 'shorten' | 'expand' | 'custom';
+
+/** Представление настроек провайдера для клиента: ключ ТОЛЬКО маской */
+export interface AiProviderView {
+  hasKey: boolean;
+  /** например «sk-…9f2c»; null, если ключ не задан */
+  keyHint: string | null;
+  baseUrl: string;
+  model: string;
+}
+
+export interface AiSettingsView {
+  defaultProvider: AiProviderName;
+  openai: AiProviderView;
+  anthropic: AiProviderView;
+}
+
+/** PUT /api/ai/settings: undefined — не менять, null/'' — стереть, строка — записать */
+export interface AiProviderUpdate {
+  key?: string | null;
+  baseUrl?: string;
+  model?: string;
+}
+
+export interface AiSettingsUpdate {
+  defaultProvider?: AiProviderName;
+  openai?: AiProviderUpdate;
+  anthropic?: AiProviderUpdate;
+}
+
+export interface AiTestResult {
+  ok: true;
+  provider: AiProviderName;
+  model: string;
+  reply: string;
+}
+
+/** Подсекция, предложенная AI при разбиении */
+export interface AiSubsectionDraft {
+  title: string;
+  content: string;
+}
+
+export interface AiImproveResult {
+  content: string;
+}
+
+export interface AiSplitResult {
+  subsections: AiSubsectionDraft[];
+}
+
 // ================= REST-контракт (Next.js /api) =================
 /**
  * GET    /api/server-info                 → ServerInfo
@@ -189,5 +251,13 @@ export interface ScriptPushMessage {
  * PATCH  /api/takes/:id {rating|null}     → TakeRecord
  * DELETE /api/takes/:id                   → { ok: true }
  *
- * Ошибки: { error: string, code?: string }; 409 → code='revision_conflict'
+ * AI (BYOK; ключи хранятся на сервере, клиенту — маски):
+ * GET    /api/ai/settings                 → AiSettingsView
+ * PUT    /api/ai/settings AiSettingsUpdate → AiSettingsView
+ * POST   /api/ai/test {provider?, key?, baseUrl?, model?} → AiTestResult
+ * POST   /api/ai/improve {content, mode, instruction?, title?} → AiImproveResult
+ * POST   /api/ai/split {content, maxWords?, title?} → AiSplitResult
+ *
+ * Ошибки: { error: string, code?: string }; 409 → code='revision_conflict';
+ * ключ не настроен → 400 code='ai_not_configured'
  */

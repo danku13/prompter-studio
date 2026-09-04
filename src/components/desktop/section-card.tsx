@@ -6,12 +6,19 @@
  */
 
 import * as React from 'react';
-import { ArrowDown, ArrowUp, Copy, Trash2 } from 'lucide-react';
-import type { ScriptSection } from '@/lib/types';
+import { ArrowDown, ArrowUp, Copy, Scissors, Sparkles, Trash2, Wand2 } from 'lucide-react';
+import type { AiSubsectionDraft, ScriptSection } from '@/lib/types';
+import { ApiClient } from '@/lib/client/api';
 import { countWords, estimateSeconds, formatDuration } from '@/lib/text';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -25,6 +32,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SECTION_COLOR_DOT, SECTION_COLOR_EDGE, SECTION_COLOR_LABEL, SECTION_COLORS } from './colors';
+import { AiImproveDialog, AiSplitDialog } from './ai-dialogs';
 import { plural } from './utils';
 
 export interface SectionCardProps {
@@ -32,10 +40,14 @@ export interface SectionCardProps {
   index: number;
   total: number;
   wpm: number;
+  /** REST-клиент для AI-диалогов */
+  api: ApiClient;
   onChange: (patch: Partial<ScriptSection>) => void;
   onMove: (dir: -1 | 1) => void;
   onDuplicate: () => void;
   onRemove: () => void;
+  /** применить разбиение: секция заменяется подсекциями */
+  onSplit: (parts: AiSubsectionDraft[]) => void;
 }
 
 export function SectionCard({
@@ -43,12 +55,16 @@ export function SectionCard({
   index,
   total,
   wpm,
+  api,
   onChange,
   onMove,
   onDuplicate,
   onRemove,
+  onSplit,
 }: SectionCardProps) {
   const [confirmRemove, setConfirmRemove] = React.useState(false);
+  const [improveOpen, setImproveOpen] = React.useState(false);
+  const [splitOpen, setSplitOpen] = React.useState(false);
   const taRef = React.useRef<HTMLTextAreaElement | null>(null);
 
   const words = countWords(section.content);
@@ -90,6 +106,28 @@ export function SectionCard({
           ))}
         </div>
         <div className="flex items-center gap-0.5">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400"
+                title="AI-помощник: улучшить или разбить текст"
+              >
+                <Sparkles className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={() => setImproveOpen(true)}>
+                <Wand2 className="size-4" />
+                Улучшить текст…
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setSplitOpen(true)}>
+                <Scissors className="size-4" />
+                Разбить на подсекции…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="ghost"
             size="icon"
@@ -168,6 +206,24 @@ export function SectionCard({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI-диалоги: улучшение и разбиение */}
+      <AiImproveDialog
+        open={improveOpen}
+        onOpenChange={setImproveOpen}
+        api={api}
+        title={section.title}
+        content={section.content}
+        onApply={(content) => onChange({ content })}
+      />
+      <AiSplitDialog
+        open={splitOpen}
+        onOpenChange={setSplitOpen}
+        api={api}
+        title={section.title}
+        content={section.content}
+        onApply={onSplit}
+      />
     </Card>
   );
 }

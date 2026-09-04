@@ -20,11 +20,12 @@ import {
   PanelLeft,
   PanelRight,
   Smartphone,
+  Sparkles,
   WifiOff,
 } from 'lucide-react';
 import { ApiClient, ApiError } from '@/lib/client/api';
 import { useEditorSync } from '@/lib/client/use-sync';
-import type { ScriptData, ScriptSection, ScriptSummary, TakeRating, TakeRecord } from '@/lib/types';
+import type { AiSubsectionDraft, ScriptData, ScriptSection, ScriptSummary, TakeRating, TakeRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -36,6 +37,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { AiSettingsDialog } from './ai-settings-dialog';
 import { PairDialog } from './pair-dialog';
 import { ScriptSidebar } from './script-sidebar';
 import { SectionsEditor } from './sections-editor';
@@ -132,6 +134,7 @@ export default function DesktopApp() {
   // ---------- прочее ----------
   const [wpm, setWpm] = React.useState(140);
   const [pairOpen, setPairOpen] = React.useState(false);
+  const [aiOpen, setAiOpen] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [panelOpen, setPanelOpen] = React.useState(false);
   /** оптимистичные правки дублей поверх sync.takes (null = удалён) */
@@ -452,6 +455,31 @@ export default function DesktopApp() {
     [mutate]
   );
 
+  /** AI-разбиение: секция по индексу заменяется подсекциями (цвет наследуется) */
+  const splitSection = React.useCallback(
+    (index: number, parts: AiSubsectionDraft[]) => {
+      mutate((s) => {
+        const src = s.sections[index];
+        if (!src) return s;
+        const replacement = parts.map((p, i) => ({
+          id: uid(),
+          title: p.title,
+          content: p.content,
+          color: src.color,
+          orderIndex: index + i,
+        }));
+        const sections = [...s.sections];
+        sections.splice(index, 1, ...replacement);
+        return { ...s, sections: sections.map((sec, i) => ({ ...sec, orderIndex: i })) };
+      });
+      toast({
+        title: `Секция разбита на ${parts.length}`,
+        description: 'Сохраняю и синхронизирую в суфлёр…',
+      });
+    },
+    [mutate, toast]
+  );
+
   // ---------- операции со сценариями ----------
   const selectScript = React.useCallback((id: string) => {
     setActiveScriptId((cur) => (cur === id ? cur : id));
@@ -677,6 +705,15 @@ export default function DesktopApp() {
         </div>
         <div className="flex-1" />
         <Button
+          variant="ghost"
+          size="icon"
+          className="size-9 text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:text-amber-400"
+          onClick={() => setAiOpen(true)}
+          title="AI-помощник — свои ключи (OpenAI / Claude)"
+        >
+          <Sparkles className="size-4" />
+        </Button>
+        <Button
           size="sm"
           className="bg-amber-500 text-white shadow-sm hover:bg-amber-600"
           onClick={() => setPairOpen(true)}
@@ -737,6 +774,7 @@ export default function DesktopApp() {
             loading={scriptLoading}
             error={scriptError}
             wpm={wpm}
+            api={api}
             onWpmChange={changeWpm}
             onTitleChange={updateTitle}
             onSectionChange={updateSection}
@@ -744,6 +782,7 @@ export default function DesktopApp() {
             onDuplicateSection={duplicateSection}
             onRemoveSection={removeSection}
             onAddSection={addSection}
+            onSplitSection={splitSection}
             onImportSections={importSections}
             onRetryLoad={() => setScriptLoadTick((t) => t + 1)}
           />
@@ -793,6 +832,9 @@ export default function DesktopApp() {
         sections={sections}
         devices={sync.devices}
       />
+
+      {/* ---------- настройки AI-помощника (BYOK) ---------- */}
+      <AiSettingsDialog open={aiOpen} onOpenChange={setAiOpen} api={api} />
     </div>
   );
 }

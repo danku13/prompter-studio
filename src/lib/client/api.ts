@@ -4,6 +4,12 @@
  */
 
 import type {
+  AiImproveMode,
+  AiImproveResult,
+  AiProviderName,
+  AiSettingsUpdate,
+  AiSettingsView,
+  AiSplitResult,
   PairSessionInfo,
   SaveScriptPayload,
   ScriptData,
@@ -111,6 +117,59 @@ export class ApiClient {
 
   deleteTake(id: string): Promise<{ ok: true }> {
     return this.request<{ ok: true }>(`/api/takes/${id}`, { method: 'DELETE' });
+  }
+
+  // ================= AI (BYOK) =================
+
+  /** Настройки AI-помощника: ключи приходят масками */
+  aiSettings(): Promise<AiSettingsView> {
+    return this.request<AiSettingsView>('/api/ai/settings');
+  }
+
+  /** Сохранение BYOK-настроек (ключ undefined → не менять, null/'' → стереть) */
+  aiSaveSettings(payload: AiSettingsUpdate): Promise<AiSettingsView> {
+    return this.request<AiSettingsView>('/api/ai/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Проверка подключения: инлайн-поля перекрывают сохранённые */
+  aiTest(payload: {
+    provider?: AiProviderName;
+    key?: string;
+    baseUrl?: string;
+    model?: string;
+  }): Promise<{ ok: true; provider: AiProviderName; model: string; reply: string }> {
+    return this.request<{ ok: true; provider: AiProviderName; model: string; reply: string }>(
+      '/api/ai/test',
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
+  }
+
+  /** Улучшение текста секции (stateless: текст передаётся в теле) */
+  aiImprove(payload: {
+    title?: string;
+    content: string;
+    mode: AiImproveMode;
+    instruction?: string;
+  }): Promise<AiImproveResult> {
+    return this.request<AiImproveResult>('/api/ai/improve', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /** Разбиение текста секции на подсекции */
+  aiSplit(payload: {
+    title?: string;
+    content: string;
+    maxWords?: number;
+  }): Promise<AiSplitResult> {
+    return this.request<AiSplitResult>('/api/ai/split', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 }
 

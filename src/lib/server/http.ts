@@ -41,6 +41,14 @@ const FIELD_LABELS: Record<string, string> = {
   color: 'цвет секции',
   content: 'текст секции',
   orderIndex: 'порядковый номер секции',
+  // AI
+  provider: 'провайдер AI',
+  key: 'API-ключ',
+  baseUrl: 'Base URL',
+  model: 'модель',
+  mode: 'режим улучшения',
+  instruction: 'инструкция',
+  maxWords: 'целевой размер подсекции',
 };
 
 /** ZodError → русское человекочитаемое сообщение */
