@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Socket } from 'socket.io-client';
 import { connectSocket, resolveWsMode } from './ws';
 import { getDeviceIdentity, type ConnectionConfig } from './connection';
+import { getTicket, notifyPinRequired } from './pin-store';
 import { ApiClient } from './api';
 import type {
   DevicePresenceMessage,
@@ -84,10 +85,18 @@ export function useEditorSync(api: ApiClient, scriptId: string | null): EditorSy
         sock.on('connect', () => {
           if (disposed) return;
           const payload: HelloPayload = { role: 'editor', scriptId };
+          const ticket = getTicket();
+          if (ticket) payload.ticket = ticket;
           sock!.emit('hello', payload, (ack: HelloAck) => {
             if (disposed) return;
             if (ack?.ok) setRawStatus('connected');
-            else setRawStatus('error');
+            else {
+              // включён PIN, а тикета нет/протух — просим приложение разблокироваться
+              if (ack?.code === 'pin_required' || ack?.code === 'pin_invalid') {
+                notifyPinRequired();
+              }
+              setRawStatus('error');
+            }
           });
         });
 

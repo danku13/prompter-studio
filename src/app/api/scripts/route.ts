@@ -1,14 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { errorResponse, readJson } from '@/lib/server/http';
+import { requireTicket } from '@/lib/server/security';
 import { serializeScript, serializeSummary } from '@/lib/server/serialize';
 import { createScriptSchema } from '@/lib/server/validation';
 
 export const dynamic = 'force-dynamic';
 
 /** GET /api/scripts → ScriptSummary[] (по updatedAt desc) */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
+    await requireTicket(req);
     const scripts = await db.script.findMany({
       include: { sections: true },
       orderBy: { updatedAt: 'desc' },
@@ -22,6 +24,7 @@ export async function GET(_req: NextRequest) {
 /** POST /api/scripts { title? } → ScriptData (с одной пустой секцией «Интро») */
 export async function POST(req: NextRequest) {
   try {
+    await requireTicket(req);
     const body = createScriptSchema.parse(await readJson(req));
     const title = body.title?.trim();
     const script = await db.script.create({

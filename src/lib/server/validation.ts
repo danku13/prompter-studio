@@ -62,6 +62,22 @@ export const takeRatingSchema = z.object({
   rating: z.enum(['good', 'ok', 'bad']).nullable(),
 });
 
+// ================= PIN (P0 «кафе/коворкинг») =================
+
+/** POST /api/auth/pin/verify */
+export const pinVerifySchema = z.object({
+  pin: z.string().min(1).max(64),
+});
+
+/**
+ * POST /api/auth/pin — установка/смена/отключение.
+ * newPin: строка 4–8 цифр → установить; null/'' → отключить; undefined → ошибка.
+ */
+export const pinChangeSchema = z.object({
+  currentPin: z.string().min(1).max(64).optional(),
+  newPin: z.string().min(1).max(64).nullable(),
+});
+
 // ================= AI (BYOK) =================
 
 const aiProviderEnum = z.enum(AI_PROVIDERS);

@@ -25,6 +25,8 @@
  *     (https://localhost). Небраузерные клиенты без Origin пропускаются.
  *   - CORS остаётся открытым только для транспорта socket.io; авторизация
  *     ролей происходит в io.use + hello (токен устройства валидируется в Next.js).
+ *   - PIN (P0 «кафе/коворкинг»): при включённом PIN редактор при hello обязан
+ *     предъявить тикет (см. блок «PIN-доступ редактора» ниже).
  *
  * Техническое примечание про внутренний API: socket.io с path '/' перехватывает
  * ЛЮБОЙ http-запрос (engine.io check: `req.url` начинается с '/'), поэтому обычный
@@ -39,7 +41,7 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -90,6 +92,92 @@ function secretMatches(provided: string): boolean {
   const a = Buffer.from(provided, 'utf8');
   const b = Buffer.from(BROADCAST_SECRET, 'utf8');
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// ============================== PIN-доступ редактора ==============================
+
+/**
+ * PIN (P0 «кафе/коворкинг»): редактор при hello обязан предъявить тикет
+ * 'v1.editor.<expMs>.<hmac>' (тот же алгоритм, что src/lib/server/security.ts).
+ * Файлы рядом с сервисом пишет Next.js:
+ *   runtime-pin.json    { v: 1, enabled } — включён ли PIN;
+ *   runtime-auth-secret HMAC-ключ (ротируется при смене PIN — старые тикеты протухают).
+ * Устройства-суфлёры (role=device) тикет НЕ прикладывают: их аутентифицирует
+ * pairing-токен через /api/pair/validate. Неудачные попытки — rate-limit 10/5мин на IP.
+ */
+
+const PIN_STATE_FILE = join(SERVICE_DIR, 'runtime-pin.json');
+const AUTH_SECRET_FILE = join(SERVICE_DIR, 'runtime-auth-secret');
+const TICKET_PREFIX = 'v1.editor.';
+const TICKET_TTL_MS = 12 * 60 * 60 * 1000;
+
+function readPinEnabled(): boolean {
+  try {
+    const parsed = JSON.parse(readFileSync(PIN_STATE_FILE, 'utf8').trim()) as { enabled?: unknown };
+    return parsed.enabled === true;
+  } catch {
+    return false; // файла нет — PIN не настроен
+  }
+}
+
+function readAuthSecret(): Buffer | null {
+  try {
+    const v = readFileSync(AUTH_SECRET_FILE, 'utf8').trim();
+    if (v.length >= 16) return Buffer.from(v, 'utf8');
+  } catch {
+    /* файла нет — тикеты проверить нельзя */
+  }
+  return null;
+}
+
+function verifyEditorTicket(ticket: unknown): boolean {
+  if (typeof ticket !== 'string' || !ticket.startsWith(TICKET_PREFIX)) return false;
+  const rest = ticket.slice(TICKET_PREFIX.length);
+  const dot = rest.lastIndexOf('.');
+  if (dot <= 0) return false;
+  const expMs = Number(rest.slice(0, dot));
+  const sigHex = rest.slice(dot + 1);
+  if (!Number.isInteger(expMs) || expMs <= Date.now() || expMs > Date.now() + TICKET_TTL_MS + 60_000) return false;
+  const secret = readAuthSecret();
+  if (!secret) return false;
+  // digest() без 'hex' — сразу Buffer(32): длины с actual (Buffer) совпадают
+  const expected = createHmac('sha256', secret).update(`${TICKET_PREFIX}${expMs}`).digest();
+  let actual: Buffer;
+  try {
+    actual = Buffer.from(sigHex, 'hex');
+  } catch {
+    return false;
+  }
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+const editorPinFailures = new Map<string, { count: number; resetAt: number }>();
+const PIN_FAIL_LIMIT = 10;
+const PIN_FAIL_WINDOW_MS = 5 * 60_000;
+
+function socketIp(socket: SocketWithState): string {
+  const fwd = socket.handshake.headers['x-forwarded-for'];
+  const first = typeof fwd === 'string' ? fwd.split(',')[0]?.trim() : undefined;
+  return first || socket.handshake.address || 'unknown';
+}
+
+function pinRateLimited(socket: SocketWithState): boolean {
+  const rec = editorPinFailures.get(socketIp(socket));
+  return !!rec && rec.resetAt > Date.now() && rec.count >= PIN_FAIL_LIMIT;
+}
+
+function recordPinFailure(socket: SocketWithState): void {
+  const ip = socketIp(socket);
+  const now = Date.now();
+  const rec = editorPinFailures.get(ip);
+  if (!rec || rec.resetAt <= now) {
+    editorPinFailures.set(ip, { count: 1, resetAt: now + PIN_FAIL_WINDOW_MS });
+  } else {
+    rec.count += 1;
+  }
+  if (editorPinFailures.size > 1000) {
+    for (const [k, v] of editorPinFailures) if (v.resetAt <= now) editorPinFailures.delete(k);
+  }
 }
 
 // ============================== Типы (локально, по контракту types.ts) ==============================
@@ -288,7 +376,7 @@ async function handleHttpRequest(
   }
 
   if (req.method === 'GET' && url.pathname === '/') {
-    sendJson(res, 200, { ok: true, service: 'prompter-sync', port: PORT });
+    sendJson(res, 200, { ok: true, service: 'prompter-sync', port: PORT, pin: readPinEnabled() });
     return;
   }
 
@@ -364,7 +452,7 @@ async function handleHello(socket: SocketWithState, payload: unknown, ack: unkno
     respond({ ok: false, error: 'Некорректный payload' });
     return;
   }
-  const p = payload as { role?: unknown; token?: unknown; scriptId?: unknown; deviceInfo?: unknown };
+  const p = payload as { role?: unknown; token?: unknown; scriptId?: unknown; deviceInfo?: unknown; ticket?: unknown };
 
   if (p.role === 'device') {
     const token = typeof p.token === 'string' ? p.token.trim() : '';
@@ -397,6 +485,21 @@ async function handleHello(socket: SocketWithState, payload: unknown, ack: unkno
   }
 
   if (p.role === 'editor') {
+    // PIN включён → редактор обязан предъявить валидный тикет (issueEditorTicket
+    // после ввода PIN в веб-редакторе). Без тикета/с протухшим — пусть вводит PIN.
+    if (readPinEnabled()) {
+      if (pinRateLimited(socket)) {
+        log(`editor rejected: pin rate limit (ip ${socketIp(socket)})`);
+        respond({ ok: false, error: 'Слишком много попыток. Подождите несколько минут.', code: 'pin_required' });
+        return;
+      }
+      if (!verifyEditorTicket(p.ticket)) {
+        recordPinFailure(socket);
+        log(`editor rejected: pin required/invalid (socket ${socket.id}, ip ${socketIp(socket)})`);
+        respond({ ok: false, error: 'Требуется PIN-код', code: 'pin_required' });
+        return;
+      }
+    }
     const scriptId = typeof p.scriptId === 'string' ? p.scriptId.trim() : '';
     if (!scriptId) {
       respond({ ok: false, error: 'Не передан scriptId' });

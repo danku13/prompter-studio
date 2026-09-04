@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { errorResponse, readJson } from '@/lib/server/http';
+import { requireTicket } from '@/lib/server/security';
 import { callLlm } from '@/lib/server/ai/provider';
 import { buildSplitPrompt, parseSplitResponse } from '@/lib/server/ai/prompts';
 import { readAiConfig, resolveProviderConfig } from '@/lib/server/ai/settings';
@@ -17,6 +18,7 @@ const DEFAULT_MAX_WORDS = 90;
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireTicket(req);
     const body = aiSplitSchema.parse(await readJson(req));
     const row = await readAiConfig();
     const cfg = resolveProviderConfig(row);

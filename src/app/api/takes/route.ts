@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { HttpError, errorResponse, readJson } from '@/lib/server/http';
+import { requireTicket } from '@/lib/server/security';
 import { serializeTake } from '@/lib/server/serialize';
 import { requireValidToken } from '@/lib/server/tokens';
 import { takeCreateSchema } from '@/lib/server/validation';
@@ -10,6 +11,7 @@ export const dynamic = 'force-dynamic';
 /** GET /api/takes?scriptId= → TakeRecord[] (новые сверху) */
 export async function GET(req: NextRequest) {
   try {
+    await requireTicket(req);
     const scriptId = req.nextUrl.searchParams.get('scriptId');
     if (!scriptId) throw new HttpError(400, 'Не указан параметр scriptId');
     const takes = await db.take.findMany({

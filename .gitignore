@@ -43,6 +43,9 @@ yarn-error.log*
 worklog.md
 # секрет внутреннего broadcast (создаёт WS-мини-сервис)
 mini-services/prompter-sync/runtime-secret
+# PIN-доступ: состояние и HMAC-ключ тикетов (пишет Next.js, читает WS-сервис)
+mini-services/prompter-sync/runtime-pin.json
+mini-services/prompter-sync/runtime-auth-secret
 # детальный аудит безопасности — только локально (репозиторий публичный!)
 docs/security-audit.md
 
@@ -60,7 +63,7 @@ apk/mobile-dist/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-
+local-*
 .claude
 .z-ai-config
 *.log
@@ -74,6 +77,8 @@ server.log
 /skills/
 # sandbox runtime artifacts (auto-commits pick these up)
 .zscripts/
+agent-ctx/
+/agent-ctx/
 tool-results/
 *.pid
 /upload/

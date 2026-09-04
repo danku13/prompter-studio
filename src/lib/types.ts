@@ -83,6 +83,25 @@ export interface ServerInfo {
   webPort: number;
   wsPort: number;
   wsMode: WsMode;
+  /** включён ли PIN-доступ (P0 «кафе/коворкинг»): клиент показывает экран ввода */
+  pinRequired: boolean;
+}
+
+// ================= PIN-доступ (P0 «кафе/коворкинг») =================
+
+/** POST /api/auth/pin/verify — ok без ticket, если PIN не задан */
+export interface PinVerifyResponse {
+  ok: true;
+  ticket: string | null;
+  expiresAt: number | null;
+  enabled: boolean;
+}
+
+/** POST /api/auth/pin — тикет свежий (после ротации секрета старые недействительны) */
+export interface PinChangeResponse {
+  enabled: boolean;
+  ticket: string;
+  expiresAt: number;
 }
 
 export interface PairSessionInfo {
@@ -135,6 +154,8 @@ export interface HelloPayload {
   token?: string;
   /** для role=editor — активный сценарий */
   scriptId?: string;
+  /** для role=editor — тикет доступа (x-app-ticket), когда включён PIN */
+  ticket?: string;
   deviceInfo?: DeviceInfo;
 }
 
@@ -142,6 +163,8 @@ export interface HelloAck {
   ok: boolean;
   scriptId?: string;
   error?: string;
+  /** 'pin_required' — редактор без тикета/с протухшим (нужно показать ввод PIN) */
+  code?: 'pin_required' | 'pin_invalid';
 }
 
 export interface DeviceStatusMessage {
@@ -257,6 +280,14 @@ export interface AiSplitResult {
  * POST   /api/ai/test {provider?, key?, baseUrl?, model?} → AiTestResult
  * POST   /api/ai/improve {content, mode, instruction?, title?} → AiImproveResult
  * POST   /api/ai/split {content, maxWords?, title?} → AiSplitResult
+ *
+ * REST-контракт — при включённом PIN все editor-роуты требуют заголовок
+ * x-app-ticket (тикет выдаёт POST /api/auth/pin/verify; 401 code='pin_required'):
+ * POST   /api/auth/pin/verify {pin}            → PinVerifyResponse | 401 pin_invalid | 429 rate_limited
+ * GET    /api/auth/pin                        → { enabled }
+ * POST   /api/auth/pin {currentPin?, newPin}  → PinChangeResponse (newPin=null → отключить)
+ * Без тикета: /api/server-info, /api/auth/pin*, /api/pair/validate,
+ * /api/mobile/script и POST /api/takes (их защищает device-токен).
  *
  * Ошибки: { error: string, code?: string }; 409 → code='revision_conflict';
  * ключ не настроен → 400 code='ai_not_configured'

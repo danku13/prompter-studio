@@ -11,6 +11,8 @@ import type {
   AiSettingsView,
   AiSplitResult,
   PairSessionInfo,
+  PinChangeResponse,
+  PinVerifyResponse,
   SaveScriptPayload,
   ScriptData,
   ScriptSummary,
@@ -20,6 +22,7 @@ import type {
   WsMode,
 } from '../types';
 import { isNativeApp, type ConnectionConfig } from './connection';
+import { clearTicket, getTicket, notifyPinRequired } from './pin-store';
 
 export class ApiError extends Error {
   constructor(
@@ -37,12 +40,14 @@ export class ApiClient {
   constructor(private base = '') {}
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
+    const ticket = getTicket();
     let res: Response;
     try {
       res = await fetch(this.base + path, {
         ...init,
         headers: {
           'Content-Type': 'application/json',
+          ...(ticket ? { 'x-app-ticket': ticket } : {}),
           ...(init?.headers ?? {}),
         },
       });
@@ -59,10 +64,33 @@ export class ApiClient {
       } catch {
         /* тело не JSON */
       }
+      // сервер требует PIN: тикет протух/отсутствует — сбрасываем и просим ввод
+      if (res.status === 401 && code === 'pin_required') {
+        clearTicket();
+        notifyPinRequired();
+      }
       throw new ApiError(res.status, message, code);
     }
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
+  }
+
+  // ================= PIN (P0 «кафе/коворкинг») =================
+
+  /** Проверка PIN → тикет (401 code='pin_invalid' при неверном, 429 при rate-limit) */
+  verifyPin(pin: string): Promise<PinVerifyResponse> {
+    return this.request<PinVerifyResponse>('/api/auth/pin/verify', {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    });
+  }
+
+  /** Установка/смена/откл PIN: newPin=null → отключить; при заданном PIN нужен currentPin */
+  changePin(payload: { currentPin?: string; newPin: string | null }): Promise<PinChangeResponse> {
+    return this.request<PinChangeResponse>('/api/auth/pin', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   serverInfo(): Promise<ServerInfo> {

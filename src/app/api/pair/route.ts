@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { getPairTtlMinutes, getWebPort, getWsPort } from '@/lib/server/config';
 import { HttpError, errorResponse, readJson } from '@/lib/server/http';
 import { getLanIp } from '@/lib/server/lan';
+import { requireTicket } from '@/lib/server/security';
 import { pairCreateSchema } from '@/lib/server/validation';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireTicket(req);
     const { scriptId } = pairCreateSchema.parse(await readJson(req));
     const script = await db.script.findUnique({ where: { id: scriptId } });
     if (!script) throw new HttpError(404, 'Сценарий не найден');

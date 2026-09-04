@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { HttpError, errorResponse, readJson } from '@/lib/server/http';
 import { notifyScriptSaved } from '@/lib/server/notify';
+import { requireTicket } from '@/lib/server/security';
 import { serializeScript } from '@/lib/server/serialize';
 import { saveScriptSchema } from '@/lib/server/validation';
 
@@ -10,8 +11,9 @@ export const dynamic = 'force-dynamic';
 type RouteParams = { params: Promise<{ id: string }> };
 
 /** GET /api/scripts/:id → ScriptData (секции по orderIndex asc) */
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
   try {
+    await requireTicket(req);
     const { id } = await params;
     const script = await db.script.findUnique({
       where: { id },
@@ -32,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: RouteParams) {
  */
 export async function PUT(req: NextRequest, { params }: RouteParams) {
   try {
+    await requireTicket(req);
     const { id } = await params;
     const body = saveScriptSchema.parse(await readJson(req));
 
@@ -70,8 +73,9 @@ export async function PUT(req: NextRequest, { params }: RouteParams) {
 }
 
 /** DELETE /api/scripts/:id → { ok: true } (каскад: секции, дубли, токены) */
-export async function DELETE(_req: NextRequest, { params }: RouteParams) {
+export async function DELETE(req: NextRequest, { params }: RouteParams) {
   try {
+    await requireTicket(req);
     const { id } = await params;
     const existing = await db.script.findUnique({ where: { id } });
     if (!existing) throw new HttpError(404, 'Сценарий не найден');

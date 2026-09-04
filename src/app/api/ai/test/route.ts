@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { HttpError, errorResponse, readJson } from '@/lib/server/http';
+import { requireTicket } from '@/lib/server/security';
 import { callLlm } from '@/lib/server/ai/provider';
 import { providerConfig, readAiConfig } from '@/lib/server/ai/settings';
 import { aiTestSchema } from '@/lib/server/validation';
@@ -22,6 +23,7 @@ function normBaseUrl(u: string): string {
  */
 export async function POST(req: NextRequest) {
   try {
+    await requireTicket(req);
     const body = aiTestSchema.parse(await readJson(req));
     const row = await readAiConfig();
     const provider = body.provider ?? null;

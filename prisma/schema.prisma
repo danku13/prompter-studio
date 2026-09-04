@@ -14,6 +14,9 @@ model Script {
   id         String      @id @default(cuid())
   title      String      @default("Новый сценарий")
   revision   Int         @default(1)
+  // владелец появится с авторизацией (docs/plan/02-auth.md): null — «локальные» сценарии
+  ownerUserId String?
+  owner      User?       @relation("OwnedScripts", fields: [ownerUserId], references: [id])
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
   sections   Section[]
@@ -78,4 +81,126 @@ model AiConfig {
   anthropicModel   String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+}
+
+// ================= PIN-защита доступа (P0 «кафе/коворкинг», см. docs/security-audit.md) =================
+
+/// Единственная строка id='default'. pinHash: null — доступ без PIN;
+/// иначе формат 'scrypt:<N>:<r>:<p>:<len>:<saltHex>:<hashHex>' (node:crypto).
+/// После проверки PIN клиент получает краткоживущий HMAC-тикет (см. lib/server/security.ts);
+/// WS-мини-сервис валидирует редактора по тому же тикету (файлы runtime-pin.json + runtime-auth-secret).
+model SecurityConfig {
+  id        String   @id @default("default")
+  pinHash   String?
+  updatedAt DateTime @updatedAt
+}
+
+// ================= Планируемые модели (docs/plan/02-auth.md, 03-survey.md, 04-payments.md) =================
+// Добавлены заранее — «подготовка к внедрению» (миграция без сюрпризов). Кодом пока не используются.
+// После появления авторизации сценарии получают владельца (ownerUserId), опрос и онбординг — серверный трекинг.
+
+model User {
+  id            String             @id @default(cuid())
+  email         String             @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  scripts       Script[]           @relation("OwnedScripts")
+  survey        SurveyResponse?
+  onboarding    OnboardingProfile?
+  payments      Payment[]
+  subscriptions Subscription[]
+}
+
+/// NextAuth v4: связки OAuth-провайдеров (Яндекс ID, Google ID)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  // токены провайдера — только на сервере; шифрование at rest см. docs/plan/02-auth.md
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+/// Опрос при регистрации: откуда узнал о сервисе / для чего использует (docs/plan/03-survey.md)
+model SurveyResponse {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source    String
+  purpose   String
+  frequency String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Серверный трекинг онбординг-курса (после авторизации; до неё — localStorage, docs/plan/01-onboarding.md)
+model OnboardingProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  skippedAt   DateTime?
+  lastStep    Int       @default(0)
+  updatedAt   DateTime  @updatedAt
+}
+
+/// Платежи (docs/plan/04-payments.md): amount — в копейках; externalId — id платежа у провайдера
+model Payment {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  provider       String // 'yookassa' | 'prodamus'
+  kind           String // 'one_time' | 'recurring'
+  status         String // 'pending' | 'succeeded' | 'canceled'
+  amount         Int
+  currency       String   @default("RUB")
+  externalId     String   @unique
+  idempotencyKey String   @unique
+  description    String?
+  meta           String? // JSON-строка (SQLite без Json-типа)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, createdAt])
+}
+
+/// Подписки (рекуррентные платежи)
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  provider         String
+  status           String // 'active' | 'past_due' | 'canceled'
+  currentPeriodEnd DateTime?
+  externalId       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId, status])
 }
